@@ -49,9 +49,11 @@ That's why I built **FORGE**. It's a prototype designed to let anyone have a per
 
 ### 📱 界面预览 / Screenshots
 
-| 首页 Dashboard (Mobile) | 核心功能 Core Features (Desktop) |
+| 首页 (Dashboard) | 个人档案与身体数据 (Profile) |
 | :---: | :---: |
-| <img src="./public/screenshot-dashboard.webp" width="250" alt="Dashboard" /> | <img src="./public/screenshot-pacing.png" width="500" alt="Pacing Engine" /><br><br><img src="./public/screenshot-pr.png" width="500" alt="PR Tracker" /> |
+| <img src="./public/screenshot-dashboard.webp" width="400" alt="Dashboard" /> | <img src="./public/screenshot-profile.png" width="400" alt="Profile" /> |
+| **配速引擎 (Pacing Engine)** | **八大项 PR 追踪 (PR Tracker)** |
+| <img src="./public/screenshot-pacing.png" width="400" alt="Pacing Engine" /> | <img src="./public/screenshot-pr.png" width="400" alt="PR Tracker" /> |
 
 
 ### 💬 交流与反馈
