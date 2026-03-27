@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Trophy, Clock, Target, Flame } from "lucide-react";
 import { useTrainingStore } from "@/store/useTrainingStore";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { useTranslation } from "@/components/I18nProvider";
 
@@ -144,6 +144,7 @@ export default function BenchmarksPage() {
             >
               <PolarGrid gridType="polygon" stroke="#353535" />
               <PolarAngleAxis dataKey="subject" tick={{ fill: '#989177', fontSize: 10, fontWeight: 'bold' }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
               <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
