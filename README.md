@@ -14,13 +14,23 @@
 
 ---
 
-## 💡 The Story Behind FORGE / 开发初衷
+## 💡 开发初衷 / The Story Behind FORGE
+
+*Hi! 我是 Mervyn，一个重度 HYROX 爱好者和 AI 极客。*
+
+作为一个经常出差的人，我常在酒店或普通健身房遇到没有专用器械（如雪橇车或滑雪机）的窘境。我一直想要一个随身的“口袋教练”——它不仅能自动生成系统的 HYROX 训练计划，还能根据我手头的器械智能平替动作，记录 PR，并根据我上周的疲劳度调整下周的训练量。
+
+这就是我开发 **FORGE** 的原因。作为一个早期 Prototype（原型），它的初衷是帮助大家在缺乏条件时也能科学备赛。当然，去线下场馆跟着专业教练上课永远是最佳选择，但当你出差或独自训练时，FORGE 会是你最好的辅助工具。
+
+*(声明：本项目为个人爱好之作，非 HYROX 官方应用，也未包含任何官方 Logo。)*
+
+---
 
 *Hi! I'm Mervyn, a heavy HYROX enthusiast and AI geek.*
 
-As someone who loves HYROX and travels frequently, I often found myself in hotel gyms or local fitness centers lacking specific equipment (like a sled or a SkiErg). I wanted a personal coach in my pocket—one that could not only generate a structured HYROX training plan but also dynamically swap exercises based on available equipment, track my PRs, and adjust my next week's volume based on my fatigue levels.
+As someone who loves HYROX and travels frequently, I often found myself in hotel gyms lacking specific equipment (like a sled or a SkiErg). I wanted a personal coach in my pocket—one that could generate a structured HYROX training plan, dynamically swap exercises based on available equipment, track my PRs, and adjust my next week's volume based on my fatigue levels.
 
-That's why I built **FORGE**. It's a prototype designed to let anyone have a personalized HYROX coach on their phone or laptop. Of course, nothing beats going to a real gym and taking classes with professional coaches, but FORGE is here to fill the gaps when you're on the road or training solo.
+That's why I built **FORGE**. It's a prototype designed to let anyone have a personalized HYROX coach on their phone. Of course, nothing beats going to a real gym and taking classes with professional coaches, but FORGE is here to fill the gaps when you're on the road or training solo.
 
 *(Note: This is a fan-made project and is **NOT** an official HYROX application. No official HYROX logos or trademarks are used.)*
 
