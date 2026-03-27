@@ -78,7 +78,7 @@ export default function ProfilePage() {
               <div>
                  <span className="font-display text-[9px] font-bold tracking-widest uppercase text-outline block mb-0.5">{t("profile.bracket")}</span>
                  <span className="font-display font-black text-lg text-on-surface uppercase">
-                   {profile.fitnessLevel} / {profile.category}
+                   {profile.category}
                  </span>
               </div>
               <div className="w-12 h-12 rounded-full border-2 border-primary/30 flex items-center justify-center">
