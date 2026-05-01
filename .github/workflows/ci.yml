@@ -8,6 +8,11 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:./ci.db
+      NEXTAUTH_SECRET: ci-secret-for-forge-verification
+      NEXTAUTH_URL: http://127.0.0.1:3210
+      AUTH_TRUST_HOST: true
 
     steps:
       - name: Checkout
@@ -22,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare Prisma
+        run: npm run db:generate
+
       - name: Run Coach Core tests
         run: npm run test:core
 
@@ -30,3 +38,6 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Run API smoke tests
+        run: npm run test:api

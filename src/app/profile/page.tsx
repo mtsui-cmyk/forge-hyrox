@@ -6,6 +6,7 @@ import { Edit3, User, Flame, Settings2, LogOut, ChevronRight } from "lucide-reac
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { useSession, signOut } from "next-auth/react";
 import { useTranslation } from "@/components/I18nProvider";
+import { disableDemoMode, isDemoMode, DEMO_PROFILE } from "@/lib/demoMode";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -17,6 +18,11 @@ export default function ProfilePage() {
     async function loadProfile() {
       if (status === "loading") return;
       if (status === "unauthenticated") {
+        if (isDemoMode()) {
+          const savedData = localStorage.getItem("hyroxProfile");
+          setProfile(savedData ? JSON.parse(savedData) : DEMO_PROFILE);
+          return;
+        }
         router.push("/login");
         return;
       }
@@ -45,7 +51,7 @@ export default function ProfilePage() {
     loadProfile();
   }, [router, status]);
 
-  if (!profile || status === "loading") return null;
+  if (!profile || (status === "loading" && !isDemoMode())) return null;
 
   return (
     <div className="bg-background text-on-background antialiased pb-24 min-h-screen">
@@ -69,7 +75,12 @@ export default function ProfilePage() {
               onClick={() => {
                 localStorage.removeItem("hyroxProfile");
                 localStorage.removeItem("hyroxEquipment");
-                signOut({ callbackUrl: '/' });
+                if (isDemoMode()) {
+                  disableDemoMode();
+                  router.push("/");
+                } else {
+                  signOut({ callbackUrl: '/' });
+                }
               }}
               className="text-error/60 hover:text-error transition-colors"
               aria-label={t("profile.logout")}
@@ -88,10 +99,10 @@ export default function ProfilePage() {
           <div className="absolute top-10 w-full h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent z-0 blur-[2px]"></div>
           
           <h2 className="text-3xl font-black uppercase tracking-tighter text-primary font-display mb-1">
-            {session?.user?.email?.split('@')[0] || t("profile.athlete")}
+            {isDemoMode() ? "demo-athlete" : session?.user?.email?.split('@')[0] || t("profile.athlete")}
           </h2>
           <span className="font-mono text-[10px] text-outline uppercase tracking-[0.3em] bg-surface-container-high px-3 py-1 rounded-full border border-outline/20 hidden md:inline-block">
-             HYROX ID: HK-{(session?.user?.email || "athlete").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0).toString().padStart(6, "0").slice(-6)}
+             HYROX ID: HK-{(isDemoMode() ? "demo-athlete" : session?.user?.email || "athlete").split("").reduce((acc, c) => acc + c.charCodeAt(0), 0).toString().padStart(6, "0").slice(-6)}
           </span>
         </section>
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Circle, Flame, Save } from "lucide-react";
 import { useTranslation } from "@/components/I18nProvider";
+import { isDemoMode } from "@/lib/demoMode";
 
 export default function EquipmentSettings() {
   const router = useRouter();
@@ -32,6 +33,11 @@ export default function EquipmentSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     localStorage.setItem("hyroxEquipment", JSON.stringify(equipment));
+    if (isDemoMode()) {
+      router.push("/profile");
+      setIsSaving(false);
+      return;
+    }
     try {
       const savedProfile = localStorage.getItem("hyroxProfile");
       const profile = savedProfile ? JSON.parse(savedProfile) : null;

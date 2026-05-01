@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { Flame, LogOut } from "lucide-react";
+import { Flame, LogOut, PlayCircle } from "lucide-react";
 import { useTranslation, LanguageToggle } from "@/components/I18nProvider";
 
 export default function Home() {
@@ -84,6 +84,12 @@ export default function Home() {
               className="flex items-center justify-center w-full py-4 bg-surface-container-high border border-outline/30 text-on-surface font-bold font-display rounded-xl transition-colors uppercase tracking-widest hover:bg-surface-container-highest text-sm shadow-xl"
             >
               {t("landing.register")}
+            </Link>
+            <Link
+              href="/demo"
+              className="flex items-center justify-center w-full py-4 bg-transparent border border-primary/40 text-primary font-bold font-display rounded-xl transition-colors uppercase tracking-widest hover:bg-primary/10 text-sm"
+            >
+              <PlayCircle className="w-4 h-4 mr-2" /> {t("landing.tryDemo")}
             </Link>
           </div>
         )}

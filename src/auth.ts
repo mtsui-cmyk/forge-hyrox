@@ -32,6 +32,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   callbacks: {
+    async authorized({ request, auth }) {
+      const { pathname } = request.nextUrl;
+      const isDemoMode = request.cookies.get("forge-demo")?.value === "1";
+      const isPublicRoute = pathname === "/" || pathname === "/demo";
+      const isAuthRoute = pathname === "/login" || pathname === "/register";
+      const isDemoRoute =
+        pathname === "/dashboard" ||
+        pathname === "/benchmarks" ||
+        pathname === "/pacing" ||
+        pathname === "/profile" ||
+        pathname === "/equipment" ||
+        pathname.startsWith("/workout/");
+
+      if (pathname.startsWith("/api") || isPublicRoute || isAuthRoute) return true;
+      if (isDemoMode && isDemoRoute) return true;
+      return !!auth;
+    },
     async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;

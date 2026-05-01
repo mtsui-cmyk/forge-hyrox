@@ -41,7 +41,10 @@ Make FORGE a production-ready pocket HYROX coach: database-first training state,
 - Added `coachNotes` to training days so the dashboard can explain why a session, pace, recovery day, or volume reduction was programmed.
 - Added red-flag readiness detection for symptoms like chest tightness, dizziness, numbness, sharp pain, and swelling.
 - Added persisted `planAdjustments` so the dashboard can explain when readiness, taper timing, missing equipment, or fallback planning changed the generated week.
-- Added GitHub Actions CI for `npm run test:core`, `npm run lint`, and `npm run build`.
+- Added `/demo` mode with a local sample athlete, microcycle, PRs, logs, readiness state, and equipment limitations so GitHub visitors can evaluate the product without registration.
+- Added initial Prisma migration and database scripts for generate, local migrate, deploy, and studio.
+- Added API smoke tests that boot the production server, verify unauthenticated API JSON 401 responses, and verify demo-cookie access to protected pages.
+- Added GitHub Actions CI for `npm run test:core`, `npm run test:api`, `npm run lint`, and `npm run build`.
 
 ## Verification
 
@@ -74,6 +77,8 @@ Make FORGE a production-ready pocket HYROX coach: database-first training state,
 - Browser smoke checked English mode on `/dashboard`, `/equipment`, and `/workout/2026-05-01`; interactive UI controls no longer leak Chinese copy in English mode.
 - Browser smoke checked `/dashboard` coach notes rendering.
 - Browser smoke checked `/dashboard` after plan-adjustment UI wiring; existing saved plans without adjustment metadata correctly hide the card.
+- Browser smoke checked `/demo` redirects into `/dashboard` and renders demo Plan Adjustments, Coach Notes, and Readiness.
+- `npm run test:api` passes after production build.
 
 ## Next Vertical Slices
 
@@ -87,7 +92,7 @@ Make FORGE a production-ready pocket HYROX coach: database-first training state,
    - Return user-facing validation messages when generated plans are repaired or rejected.
 
 3. **Production readiness**
-   - Add Prisma migrations.
    - Expand behavior tests for fatigue/readiness and taper-specific guardrails.
-   - Add API integration tests for `/api/sync`, `/api/generate-wod`, and `/api/generate-swap`.
+   - Add authenticated API integration tests for `/api/sync`, `/api/generate-wod`, and `/api/generate-swap`.
    - Expand safe logging conventions across all LLM/API routes.
+   - Choose the production database target; SQLite remains suitable for prototype/demo deployments, while PostgreSQL is a better fit for public multi-user launch.

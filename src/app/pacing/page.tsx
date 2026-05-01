@@ -7,6 +7,7 @@ import { BottomNavBar } from "@/components/BottomNavBar";
 import { useTranslation } from "@/components/I18nProvider";
 import { useTrainingStore } from "@/store/useTrainingStore";
 import { deriveRunPrescriptions, formatPace, parseClockTime, type RunPrescription } from "@/lib/runPrescription";
+import { isDemoMode } from "@/lib/demoMode";
 
 // Proportional distribution heuristics for HYROX
 const STATIONS = [
@@ -39,6 +40,7 @@ export default function PacingEnginePage() {
   useEffect(() => {
     async function loadPrs() {
       if (Object.keys(prs).length > 0) return;
+      if (isDemoMode()) return;
       try {
         const res = await fetch("/api/sync");
         if (!res.ok) return;

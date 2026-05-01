@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, AlertTriangle, Brain, Dumbbell, Check, Flame, Rocket } from "lucide-react";
 import { useTranslation, LanguageToggle } from "@/components/I18nProvider";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useTrainingStore } from "@/store/useTrainingStore";
 import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { format, isSameDay, isBefore, isAfter } from "date-fns";
-import Link from "next/link";
 import { normalizeTrainingPlan, normalizeTrainingPlanArray } from "@/lib/trainingPlan";
 import { deriveRunPrescriptions, parseClockTime } from "@/lib/runPrescription";
 import { summarizeReadiness } from "@/lib/readiness";
+import { createDemoMicrocycle, DEMO_EQUIPMENT, DEMO_PROFILE, DEMO_PRS, isDemoMode, seedDemoWorkspace, todayDateString } from "@/lib/demoMode";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -62,6 +62,24 @@ export default function Dashboard() {
     async function initData() {
       if (status === "loading") return;
 
+      if (isDemoMode()) {
+        if (!localStorage.getItem("hyroxProfile")) {
+          seedDemoWorkspace(lang === "zh" ? "zh" : "en");
+        }
+        const savedProfile = localStorage.getItem("hyroxProfile");
+        const savedEquipment = localStorage.getItem("hyroxEquipment");
+        setProfile(savedProfile ? JSON.parse(savedProfile) : DEMO_PROFILE);
+        setEquipment(savedEquipment ? JSON.parse(savedEquipment) : DEMO_EQUIPMENT);
+        if (Object.keys(useTrainingStore.getState().microcycle).length === 0) {
+          useTrainingStore.getState().setMicrocycle(createDemoMicrocycle(todayDateString(), lang === "zh" ? "zh" : "en") as any);
+        }
+        if (Object.keys(useTrainingStore.getState().prs).length === 0) {
+          setPrs(DEMO_PRS);
+        }
+        setIsSyncing(false);
+        return;
+      }
+
       if (status === "authenticated") {
         try {
           const res = await fetch("/api/sync");
@@ -102,7 +120,7 @@ export default function Dashboard() {
     }
 
     initData();
-  }, [status, router]);
+  }, [status, router, lang, setPrs]);
 
   // Update "now" for live countdown
   useEffect(() => {
@@ -120,6 +138,11 @@ export default function Dashboard() {
         targetTimeMs,
         run1kmPrMs: prs.Run1km,
       });
+      if (isDemoMode()) {
+        const plan = createDemoMicrocycle(startStr, lang === "zh" ? "zh" : "en");
+        setMicrocycle(plan as any);
+        return;
+      }
       const res = await fetch("/api/generate-wod", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,7 +197,7 @@ export default function Dashboard() {
             >
               {/* Simple initial Avatar */}
               <span className="font-display font-bold text-xs text-on-surface">
-                {session?.user?.email?.charAt(0).toUpperCase() || "U"}
+                {isDemoMode() ? "D" : session?.user?.email?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
           </div>

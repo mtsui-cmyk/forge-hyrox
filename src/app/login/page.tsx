@@ -104,6 +104,12 @@ export default function LoginPage() {
                 {t("auth.goRegister")}
               </button>
             </p>
+            <button
+              onClick={() => router.push('/demo')}
+              className="mt-4 text-[10px] font-display font-black uppercase tracking-widest text-tertiary hover:text-primary"
+            >
+              {t("landing.tryDemo")}
+            </button>
           </div>
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
   EquipmentKey,
   getMissingEquipment,
 } from "@/lib/equipmentSubstitutions";
+import { createDemoMicrocycle, DEMO_PROFILE, isDemoMode, todayDateString } from "@/lib/demoMode";
 
 export default function WorkoutDayPage() {
   const router = useRouter();
@@ -43,6 +44,11 @@ export default function WorkoutDayPage() {
   useEffect(() => {
     async function restoreWodFromDb() {
       if (wod || hasTriedRestoringWod || isRestoringWod) return;
+      if (isDemoMode()) {
+        setMicrocycle(createDemoMicrocycle(todayDateString(), lang === "zh" ? "zh" : "en") as any);
+        setHasTriedRestoringWod(true);
+        return;
+      }
       setIsRestoringWod(true);
       try {
         const res = await fetch("/api/sync");
@@ -65,7 +71,7 @@ export default function WorkoutDayPage() {
     }
 
     restoreWodFromDb();
-  }, [wod, hasTriedRestoringWod, isRestoringWod, setMicrocycle]);
+  }, [wod, hasTriedRestoringWod, isRestoringWod, setMicrocycle, lang]);
 
   const [logs, setLogs] = useState<Record<number, BlockLog>>(existingLog?.blockLogs || {});
   const [isRunning, setIsRunning] = useState(false);
@@ -123,6 +129,11 @@ export default function WorkoutDayPage() {
       rpe
     };
     try {
+      if (isDemoMode()) {
+        logWorkoutResult(dateStr, dailyLog);
+        router.push("/dashboard");
+        return;
+      }
       const res = await fetch("/api/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,6 +163,7 @@ export default function WorkoutDayPage() {
       ...useTrainingStore.getState().microcycle,
       [dateStr]: updatedWod,
     });
+    if (isDemoMode()) return;
     fetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -220,9 +232,31 @@ export default function WorkoutDayPage() {
     setIsSwapping(true);
     try {
       const baseWod = editedWod || wod;
-      const profileRes = await fetch("/api/sync");
-      if (!profileRes.ok) throw new Error("Failed to fetch profile");
-      const { profileData } = await profileRes.json();
+      if (isDemoMode()) {
+        const replacement =
+          buildLocalSubstitution(baseWod.blocks[idx] as any, todayEquipment, lang === "zh" ? "zh" : "en") || {
+            ...baseWod.blocks[idx],
+            name: lang === "zh" ? "Demo 替代动作" : "Demo Substitution",
+            details: lang === "zh"
+              ? [`替代缺失器械：${missingEqText}`, "保持相同时间域、RPE 和动作模式。"]
+              : [`Substitute missing equipment: ${missingEqText}`, "Keep the same time domain, RPE, and movement pattern."],
+          };
+        const updatedWod = {
+          ...baseWod,
+          blocks: baseWod.blocks.map((block, blockIdx) => blockIdx === idx ? replacement : block),
+        } as WOD;
+        setEditedWod(updatedWod);
+        updateWod(dateStr, updatedWod);
+        setSwappingBlockIdx(null);
+        setMissingEqText("");
+        return;
+      }
+      let profileData = { profile: DEMO_PROFILE };
+      if (!isDemoMode()) {
+        const profileRes = await fetch("/api/sync");
+        if (!profileRes.ok) throw new Error("Failed to fetch profile");
+        profileData = await profileRes.json().then((data) => data.profileData);
+      }
 
       const res = await fetch("/api/generate-swap", {
         method: "POST",

@@ -1,4 +1,5 @@
 node_modules
+.DS_Store
 # Keep environment variables out of version control
 .env
 .env.local
@@ -22,6 +23,8 @@ next-env.d.ts
 test-*.js
 fix-seed.js
 seed-test-user.js
+seed-rich-user.js
+take-mobile-screenshots.js
 test-wod.json
 
 /src/generated/prisma

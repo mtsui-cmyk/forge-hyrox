@@ -3,9 +3,17 @@ import { auth } from "@/auth"
 export const proxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
+  const isDemoMode = req.cookies.get("forge-demo")?.value === "1";
 
   const isAuthRoute = pathname === '/login' || pathname === '/register';
-  const isPublicRoute = pathname === '/';
+  const isPublicRoute = pathname === '/' || pathname === '/demo';
+  const isDemoRoute =
+    pathname === '/dashboard' ||
+    pathname === '/benchmarks' ||
+    pathname === '/pacing' ||
+    pathname === '/profile' ||
+    pathname === '/equipment' ||
+    pathname.startsWith('/workout/');
 
   // API routes own their auth behavior so callers get JSON errors, not login HTML.
   if (pathname.startsWith('/api')) {
@@ -19,7 +27,7 @@ export const proxy = auth((req) => {
   }
 
   // Non-public, non-auth pages require authentication
-  if (!isLoggedIn && !isPublicRoute) {
+  if (!isLoggedIn && !isPublicRoute && !(isDemoMode && isDemoRoute)) {
     return Response.redirect(new URL('/login', req.nextUrl));
   }
 })

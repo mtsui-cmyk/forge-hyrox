@@ -7,6 +7,7 @@ import { useTrainingStore } from "@/store/useTrainingStore";
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { useTranslation } from "@/components/I18nProvider";
+import { isDemoMode } from "@/lib/demoMode";
 
 const STATION_IDS = [
   { id: "Run1km",       name: "1000m Run",            noteKey: "Run1km" },
@@ -65,6 +66,7 @@ export default function BenchmarksPage() {
     async function loadPrsFromDb() {
       const hasPrs = Object.keys(prs).length > 0;
       if (hasPrs) { setIsLoading(false); return; }
+      if (isDemoMode()) { setIsLoading(false); return; }
       try {
         const res = await fetch("/api/sync");
         if (res.ok) {
@@ -96,6 +98,10 @@ export default function BenchmarksPage() {
   };
 
   const syncToDb = async (prPayload: Record<string, number>) => {
+    if (isDemoMode()) {
+      setIsSyncing(false);
+      return;
+    }
     try {
       await fetch("/api/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prs: prPayload }) });
     } catch (e) { console.error(e); } finally { setIsSyncing(false); }
