@@ -10,6 +10,9 @@ import { WeeklyCalendar } from "@/components/WeeklyCalendar";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { format, isSameDay, isBefore, isAfter } from "date-fns";
 import Link from "next/link";
+import { normalizeTrainingPlan, normalizeTrainingPlanArray } from "@/lib/trainingPlan";
+import { deriveRunPrescriptions, parseClockTime } from "@/lib/runPrescription";
+import { summarizeReadiness } from "@/lib/readiness";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -19,7 +22,7 @@ export default function Dashboard() {
   const [equipment, setEquipment] = useState<any>(null);
   const [isSyncing, setIsSyncing] = useState(true);
 
-  const { microcycle, setMicrocycle, completedLogs } = useTrainingStore();
+  const { microcycle, setMicrocycle, completedLogs, prs, setPrs } = useTrainingStore();
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Ensure today is start of day
   const [selectedDate, setSelectedDate] = useState<Date>(today);
@@ -33,6 +36,22 @@ export default function Dashboard() {
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const selectedWod = microcycle[selectedDateStr];
   const isCompleted = !!completedLogs[selectedDateStr];
+  const readiness = summarizeReadiness(completedLogs as any, selectedDateStr);
+  const readinessStyles = {
+    green: "border-[#00E475]/50 text-[#00E475]",
+    yellow: "border-primary/60 text-primary",
+    red: "border-[#FF5A5F]/60 text-[#FF5A5F]",
+  }[readiness.level];
+  const readinessTone = {
+    green: "text-[#00E475]",
+    yellow: "text-primary",
+    red: "text-[#FF5A5F]",
+  }[readiness.level];
+  const readinessRecommendation = {
+    green: t("dashboard.readinessGreen"),
+    yellow: t("dashboard.readinessYellow"),
+    red: t("dashboard.readinessRed"),
+  }[readiness.level];
   
   const isToday = isSameDay(selectedDate, today);
   const isPast = isBefore(selectedDate, today);
@@ -58,12 +77,15 @@ export default function Dashboard() {
             });
 
             if (dbData.microcycle) {
-              useTrainingStore.getState().setMicrocycle(Object.values(dbData.microcycle));
+              useTrainingStore.getState().setMicrocycle(normalizeTrainingPlanArray(dbData.microcycle) as any);
             }
             if (dbData.completedLogs) {
               for (const [date, log] of Object.entries(dbData.completedLogs)) {
                 useTrainingStore.getState().logWorkoutResult(date, log as any);
               }
+            }
+            if (dbData.prs) {
+              setPrs(dbData.prs);
             }
           } else {
             router.push("/onboarding");
@@ -92,14 +114,25 @@ export default function Dashboard() {
     setShowFocusModal(false);
     try {
       const startStr = format(selectedDate, "yyyy-MM-dd");
+      const targetTimeMs = parseClockTime(profile.targetTime || "01:15:00");
+      const runPrescriptions = deriveRunPrescriptions({
+        targetTimeMs,
+        run1kmPrMs: prs.Run1km,
+      });
       const res = await fetch("/api/generate-wod", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, equipment, startDate: startStr, completedLogs, focus, lang }),
+        body: JSON.stringify({ profile, equipment, startDate: startStr, completedLogs, focus, lang, runPrescriptions }),
       });
       if (!res.ok) throw new Error("API call failed");
       const data = await res.json();
-      setMicrocycle(data);
+      const planRecord = normalizeTrainingPlan(data);
+      setMicrocycle(Object.values(planRecord) as any);
+      await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ microcycle: planRecord }),
+      });
     } catch (error) {
       console.error(error);
       alert("Failed to generate plan. Please check API key and try again.");
@@ -181,6 +214,28 @@ export default function Dashboard() {
           </div>
         </section>
 
+        <section className="bg-surface-container border border-outline/30 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-lg border ${readinessStyles} flex items-center justify-center shrink-0`}>
+              <Activity className="w-5 h-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-display text-[10px] font-bold tracking-widest uppercase text-outline">{t("dashboard.readiness")}</p>
+                <span className={`font-display text-[10px] font-black uppercase tracking-widest ${readinessTone}`}>
+                  {readiness.level}
+                </span>
+              </div>
+              <p className="font-sans text-xs text-on-surface/70 leading-relaxed mt-1">
+                {t("dashboard.readinessSessions", { count: readiness.completedSessions })}
+                {readiness.avgRpe ? ` • ${t("dashboard.readinessAvgRpe", { value: readiness.avgRpe.toFixed(1) })}` : ""}
+                {` • ${t("dashboard.readinessVolume", { percent: Math.round(readiness.volumeMultiplier * 100) })}`}
+              </p>
+              <p className="font-sans text-[11px] text-outline leading-relaxed mt-2">{readinessRecommendation}</p>
+            </div>
+          </div>
+        </section>
+
         {/* Calendar and Weekly Nav */}
         <section className="space-y-4">
           <div className="flex justify-between items-center mb-2">
@@ -189,7 +244,7 @@ export default function Dashboard() {
                 onClick={() => setShowFocusModal(true)}
                 disabled={isGenerating}
                 className="shrink-0 px-3 py-1 bg-surface-container-high text-on-surface text-[10px] font-bold uppercase tracking-wider rounded-lg hover:bg-surface-container-highest border border-outline transition-colors disabled:opacity-50"
-                title="重新生成本周计划 (包含今天及往后7天)"
+                title={t("dashboard.regenerateTitle")}
               >
                 {isGenerating ? t("dashboard.generating") : t("dashboard.regenerate")}
             </button>

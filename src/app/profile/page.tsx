@@ -9,20 +9,43 @@ import { useTranslation } from "@/components/I18nProvider";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [profile, setProfile] = useState<any>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
-    const savedData = localStorage.getItem("hyroxProfile");
-    if (savedData) {
-      setProfile(JSON.parse(savedData));
-    } else {
-      router.push("/onboarding");
-    }
-  }, [router]);
+    async function loadProfile() {
+      if (status === "loading") return;
+      if (status === "unauthenticated") {
+        router.push("/login");
+        return;
+      }
 
-  if (!profile) return null;
+      const savedData = localStorage.getItem("hyroxProfile");
+      if (savedData) setProfile(JSON.parse(savedData));
+
+      try {
+        const res = await fetch("/api/sync");
+        if (!res.ok) throw new Error("Failed to fetch profile");
+        const data = await res.json();
+        if (data.profileData?.profile) {
+          localStorage.setItem("hyroxProfile", JSON.stringify(data.profileData.profile));
+          if (data.profileData.equipment) {
+            localStorage.setItem("hyroxEquipment", JSON.stringify(data.profileData.equipment));
+          }
+          setProfile(data.profileData.profile);
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+      }
+
+      if (!savedData) router.push("/onboarding");
+    }
+    loadProfile();
+  }, [router, status]);
+
+  if (!profile || status === "loading") return null;
 
   return (
     <div className="bg-background text-on-background antialiased pb-24 min-h-screen">

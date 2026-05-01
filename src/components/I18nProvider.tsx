@@ -19,12 +19,14 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("zh");
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("forge-locale") as Locale | null;
     if (saved && (saved === "zh" || saved === "en")) {
       setLocaleState(saved);
     }
+    setIsReady(true);
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
@@ -60,6 +62,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     [locale]
   );
 
+  if (!isReady) return null;
+
   return (
     <I18nContext.Provider value={{ locale, lang: locale, setLocale, t }}>
       {children}
@@ -83,9 +87,9 @@ export function LanguageToggle({ className = "" }: { className?: string }) {
       onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
       className={`px-3 py-1.5 rounded-lg bg-neutral-800 text-xs font-bold tracking-wider text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors uppercase ${className}`}
       aria-label="Switch language"
-      title={locale === "zh" ? "Switch to English" : "切换到中文"}
+      title={locale === "zh" ? "切换到英文" : "Switch to Chinese"}
     >
-      {locale === "zh" ? "EN" : "中文"}
+      {locale === "zh" ? "EN" : "ZH"}
     </button>
   );
 }

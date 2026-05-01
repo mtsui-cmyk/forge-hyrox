@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
+import { auth } from "@/auth";
+import { assertSevenDayPlan, type TrainingDay } from "@/lib/trainingPlan";
+import { assertCoachReadyMicrocycle } from "@/lib/coachGuardrails";
+import {
+  buildLocalSubstitution,
+  DEFAULT_EQUIPMENT_AVAILABILITY,
+  type EquipmentAvailability,
+} from "@/lib/equipmentSubstitutions";
+import { deriveRunPrescriptions, formatPace, parseClockTime, type RunPrescription } from "@/lib/runPrescription";
+import { summarizeReadiness } from "@/lib/readiness";
 
 const logToFile = (msg: string) => {
   try { fs.appendFileSync("/tmp/wod-error.log", new Date().toISOString() + " " + msg + "\n"); } catch(e){}
@@ -9,19 +19,38 @@ const ALIYUN_API_KEY = process.env.ALIYUN_API_KEY || "";
 const API_URL = process.env.LLM_API_URL || "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages";
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let isTapering = false;
   let weeksOut = 0;
   let avgRpe: number | undefined = undefined;
   let profile: any = null;
   let isEnglish = false;
+  let startDateForFallback = "";
+  let requestedEquipment: Partial<EquipmentAvailability> = DEFAULT_EQUIPMENT_AVAILABILITY;
+  let runPrescriptions: RunPrescription[] = [];
+  let readinessLevel = "green";
+  let readinessVolumeMultiplier = 1;
   
   try {
     const bodyText = await req.text();
-    logToFile("Incoming body: " + bodyText);
     const bodyObj = JSON.parse(bodyText);
     const { equipment, startDate, completedLogs, focus, lang } = bodyObj;
+    logToFile(`Incoming generate-wod request: user=${session.user.id}, startDate=${startDate || "missing"}, focus=${focus || "Balanced"}, hasCompletedLogs=${!!completedLogs}`);
     isEnglish = lang === 'en';
     profile = bodyObj.profile;
+    startDateForFallback = startDate;
+    requestedEquipment = equipment
+      ? { ...DEFAULT_EQUIPMENT_AVAILABILITY, ...equipment }
+      : DEFAULT_EQUIPMENT_AVAILABILITY;
+    runPrescriptions = Array.isArray(bodyObj.runPrescriptions) && bodyObj.runPrescriptions.length > 0
+      ? bodyObj.runPrescriptions
+      : deriveRunPrescriptions({
+          targetTimeMs: parseClockTime(profile?.targetTime || "01:15:00"),
+        });
 
     if (!profile || !startDate) {
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
@@ -95,13 +124,20 @@ export async function POST(req: Request) {
     const focusContext = focus && focus !== "Balanced"
       ? `\nCRITICAL FOCUS FOR THIS CYCLE: [${focus}]. Give HEAVY priority to this goal. If 'Engine', emphasize long cardio & ergs. If 'Strength', emphasize Sleds, Sandbags, Farmers Carry. If 'Transition', emphasize HYROX style running-into-station combinations.`
       : "";
+    const readiness = summarizeReadiness(completedLogs, startDate);
+    readinessLevel = readiness.level;
+    readinessVolumeMultiplier = readiness.volumeMultiplier;
+    const readinessContext = `\n[Readiness State]\nLevel: ${readiness.level.toUpperCase()}\nCompleted sessions in last 14 days: ${readiness.completedSessions}\nAverage RPE: ${readiness.avgRpe?.toFixed(1) || "N/A"}\nMax RPE: ${readiness.maxRpe?.toFixed(1) || "N/A"}\nPain/injury note count: ${readiness.painSignals.length}\nRecommended volume multiplier: ${Math.round(readiness.volumeMultiplier * 100)}%\nCoach instruction: ${readiness.recommendation}\nYou MUST adapt the weekly plan to this readiness state. For YELLOW trim total volume, avoid stacking hard days, and keep intensity controlled. For RED remove maximal sled work, reduce impact, and add recovery-biased sessions.`;
+    const runPrescriptionContext = runPrescriptions.length > 0
+      ? `\n[Run Prescriptions - MUST USE FOR RUNNING BLOCKS]\n${runPrescriptions.map((item) => `- ${item.label.toUpperCase()}: ${formatPace(item.paceMsPerKm)}/km — ${item.purpose}`).join("\n")}\nEvery running block MUST name one prescription label (easy, race, threshold, interval) and use its exact pace or a clearly justified nearby pace.`
+      : "";
 
     const prompt = `
 You are an elite HYROX coach. Generate a 7-day training microcycle starting from ${startDate}.
 The athlete is a ${profile.ageGroup} ${profile.gender}, Level: ${profile.fitnessLevel}, Category: ${profile.category === 'Pro' ? 'Pro' : 'Open'}.
 Next Race: ${profile.nextRaceDate} (${weeksOut > 0 ? weeksOut + ' Weeks Out' : 'Race Week'}), Target Time: ${profile.targetTime}.
 Athlete Bio: Weight ${profile.weight}kg, Resting HR: ${profile.restingHr || 'Unknown'} BPM, Max HR: ${profile.maxHr || 'Unknown'} BPM.
-${feedbackContext}${taperingContext}${focusContext}
+${feedbackContext}${taperingContext}${focusContext}${readinessContext}${runPrescriptionContext}
 Available Equipment: ${equipmentList}. NEVER program equipment that is not in this list.
 
 Based on Gender and Category, you MUST STRICTLY program these standard HYROX weights if the exercise is programmed:
@@ -129,9 +165,9 @@ JSON format requirement:
     "blocks": [
       {
         "type": "WarmUp" | "MainSet" | "CoolDown" | "Strength",
-        "name": "e.g., 无间断 24分钟 (EMOM 24), 计时完成 (For Time), 4 轮",
+        "name": ${isEnglish ? '"e.g., EMOM 24, For Time, 4 Rounds"' : '"e.g., 无间断 24分钟 (EMOM 24), 计时完成 (For Time), 4 轮"'},
         "format": "For Time" | "EMOM" | "AMRAP" | "Rounds" | "Sets" | "Relax",
-        "details": ["15 Cal 划船机", "20 墙球", "25m 雪橇推 (125kg)"],
+        "details": ${isEnglish ? '["15 Cal RowErg", "20 Wall Balls", "25m Sled Push (125kg)"]' : '["15 Cal 划船机", "20 墙球", "25m 雪橇推 (125kg)"]'},
         "targetDuration": 24 // in minutes (optional integer)
       }
     ]
@@ -141,6 +177,7 @@ JSON format requirement:
 Programming Guidelines:
 - Plan exactly ONE full rest day per week.
 - HYROX is a running-dominant sport. You MUST program at least 2 dedicated running sessions (e.g., Long Slow Distance, Interval Sprints, Lactate Threshold Runs).
+- Use the provided Run Prescriptions for all running blocks. Write the prescription label and exact target pace in the running block details.
 - CALIBRATE RUNNING PACES AND HEART RATE based on the user's Target Time and HR profile. IF the user provided Resting/Max HR, you MUST suggest specific BPM ranges (e.g. "Zone 2: 135-145 BPM") along with specific paces (e.g. 5:00/km) for all running blocks!
 - For the single rest day, 'blocks' can be empty or contain a simple 'Relax' block.
 - For non-rest days, include a WarmUp, at least one MainSet, and a CoolDown.
@@ -191,7 +228,7 @@ Programming Guidelines:
     const cleanJson = jsonMatch ? jsonMatch[1] : responseText;
 
     logToFile("Cleaned JSON: " + cleanJson.substring(0, 500));
-    const parsedRes = JSON.parse(cleanJson.trim());
+    const parsedRes = assertCoachReadyMicrocycle(JSON.parse(cleanJson.trim()), { equipment: requestedEquipment });
     logToFile("Returning OK JSON map with length " + parsedRes.length);
     return NextResponse.json(parsedRes);
   } catch (error: any) {
@@ -200,17 +237,21 @@ Programming Guidelines:
     
     logToFile("Initiating Elite Rescue DAA Fallback...");
     // Fallback Mock generation perfectly matching Tapering/RPE logic dynamically
-    const fallbackPlan = [];
-    const baseDate = new Date(); // fallback to today if parsing fails
+    const fallbackPlan: TrainingDay[] = [];
+    const baseDate = startDateForFallback
+      ? new Date(`${startDateForFallback}T00:00:00`)
+      : new Date();
     
     // Evaluate conditions for dynamic fallback building
-    const isHighFatigue = typeof avgRpe !== 'undefined' && avgRpe >= 8;
-    const isLowFatigue = typeof avgRpe !== 'undefined' && avgRpe <= 5;
+    const isHighFatigue = (typeof avgRpe !== 'undefined' && avgRpe >= 8) || readinessLevel === "red";
+    const isCautionFatigue = readinessLevel === "yellow";
+    const isLowFatigue = readinessLevel === "green" && typeof avgRpe !== 'undefined' && avgRpe <= 5;
     
     let basePhase = isTapering 
       ? (isEnglish ? "Race Taper Phase" : "赛前减量保养期")
       : (isEnglish ? "Base Volume Accumulation" : "基础容量积累期");
     if (!isTapering && isHighFatigue) basePhase = isEnglish ? "Forced Fatigue Reduction" : "疲劳强制削减期";
+    if (!isTapering && isCautionFatigue) basePhase = isEnglish ? "Controlled Build" : "受控推进期";
 
     const isMale = profile?.gender?.toLowerCase() === 'male';
     const isPro = profile?.category === 'Pro';
@@ -219,115 +260,216 @@ Programming Guidelines:
     const wallBallW = isMale ? (isPro ? "9kg" : "6kg") : (isPro ? "6kg" : "4kg");
     const farmerW = isMale ? (isPro ? "32kgx2" : "24kgx2") : (isPro ? "24kgx2" : "16kgx2");
     const lungeW = isMale ? (isPro ? "30kg" : "20kg") : (isPro ? "20kg" : "10kg");
+    const paceFor = (label: RunPrescription["label"], fallback: string) => {
+      const prescription = runPrescriptions.find((item) => item.label === label);
+      return prescription ? `${formatPace(prescription.paceMsPerKm)}/km` : fallback;
+    };
+    const easyPace = paceFor("easy", "5:30/km");
+    const racePace = paceFor("race", "4:45/km");
+    const thresholdPace = paceFor("threshold", "4:30/km");
+    const intervalRxPace = paceFor("interval", "4:00/km");
+
+    const pushFallbackDay = (day: TrainingDay) => {
+      const blocks = day.blocks.map((block) => buildLocalSubstitution(block, requestedEquipment, isEnglish ? "en" : "zh") || block);
+      fallbackPlan.push({ ...day, blocks });
+    };
 
     for (let i = 0; i < 7; i++) {
         const d = new Date(baseDate);
         d.setDate(d.getDate() + i);
-        const fbDate = d.toISOString().split('T')[0];
+        const fbDate = [
+          d.getFullYear(),
+          String(d.getMonth() + 1).padStart(2, '0'),
+          String(d.getDate()).padStart(2, '0')
+        ].join('-');
         const lvl = profile?.fitnessLevel?.toLowerCase() || 'intermediate';
-        let basePace = "5:30/km";
-        let intervalPace = "4:45/km";
-        if (lvl === 'beginner') { basePace = "6:30/km"; intervalPace = "5:30/km"; }
-        if (lvl === 'advanced') { basePace = "4:45/km"; intervalPace = "4:00/km"; }
-        if (lvl === 'elite') { basePace = "4:15/km"; intervalPace = "3:30/km"; }
+        let basePace = easyPace;
+        let intervalPace = intervalRxPace;
+        if (!runPrescriptions.length && lvl === 'beginner') { basePace = "6:30/km"; intervalPace = "5:30/km"; }
+        if (!runPrescriptions.length && lvl === 'advanced') { basePace = "4:45/km"; intervalPace = "4:00/km"; }
+        if (!runPrescriptions.length && lvl === 'elite') { basePace = "4:15/km"; intervalPace = "3:30/km"; }
         
         if (i === 6) {
-             fallbackPlan.push({
+             pushFallbackDay({
                  date: fbDate,
                  isRestDay: true,
                  phase: basePhase,
                  title: isEnglish ? "Full Rest (Active Recovery)" : "彻底休息 (Active Recovery)",
                  description: isEnglish
                    ? (isHighFatigue && isTapering ? "High fatigue detected near race week. Full rest mandated."
-                      : isHighFatigue ? "High RPE detected recently. Mandatory active recovery day."
+                      : isHighFatigue ? "High readiness risk detected recently. Mandatory active recovery day."
+                      : isCautionFatigue ? "Readiness suggests controlled volume today."
                       : isTapering ? `${weeksOut} weeks to race. Reserve energy with extra rest.`
                       : "Rest day. Stretch and recover.")
                    : (isHighFatigue && isTapering ? "昨日你的疲劳反馈极高，加上距离比赛不足两周，AI 强制切断所有高强度训练，彻底静养。"
-                      : isHighFatigue ? "由于近期积累了高达 8 以上的平均疲劳(RPE)，系统为你指派了强制主动恢复日。"
+                      : isHighFatigue ? "由于近期 readiness 风险较高，系统为你指派了强制主动恢复日。"
+                      : isCautionFatigue ? "近期 readiness 提示谨慎推进，今天控制训练量。"
                       : isTapering ? `距离比赛仅剩 ${weeksOut} 周，多安排休息以储备体能。`
                       : "日常休息日，拉伸与放松肌肉。"),
                  blocks: [{ type: "Relax", name: isEnglish ? "Light Stretch & Walk" : "轻度拉伸与散步", format: "Relax", details: isEnglish ? ["20min Easy Walk", "Foam Roll & Static Stretch"] : ["20分钟慢走", "泡沫轴放松拉伸"], targetDuration: 30 }]
-             });
+             } as TrainingDay);
         } else if (i === 1 || i === 4) {
-             let runTitle = i === 1 ? "乳酸阈值间歇 (Lactate Intervals)" : "长距离有氧引擎 (Long Slow Distance)";
-             let runDesc = i === 1 ? "通过短距离冲刺提升乳酸清除能力与跑步极速。" : "建立超长待机的有氧底座，HYROX 取胜的关键。";
+             let runTitle = isEnglish
+               ? (i === 1 ? "Lactate Intervals" : "Long Slow Distance")
+               : (i === 1 ? "乳酸阈值间歇" : "长距离有氧引擎");
+             let runDesc = isEnglish
+               ? (i === 1 ? "Improve lactate clearance and speed reserve with controlled repeats." : "Build the aerobic base that decides HYROX durability.")
+               : (i === 1 ? "通过短距离冲刺提升乳酸清除能力与跑步极速。" : "建立超长待机的有氧底座，HYROX 取胜的关键。");
              let runningBlock = i === 1 
-                 ? { type: "MainSet", name: "800m 间歇串", format: "Intervals", details: [`8 x 800m 跑步 (目标配速 ${intervalPace})`, "组间慢走休息 90 秒"], targetDuration: 45 }
-                 : { type: "MainSet", name: "周末长距离跑", format: "Relax", details: [`12km - 15km 轻松跑`, `目标心率 Zone 2，配速推荐 ${basePace}`, "注意步频与呼吸的结合"], targetDuration: 90 };
+                 ? {
+                     type: "MainSet",
+                     name: isEnglish ? "800m Repeat Set" : "800m 间歇串",
+                     format: "Intervals",
+                     details: isEnglish
+                       ? [`INTERVAL prescription: 8 x 800m run @ ${intervalPace}`, "Walk 90 seconds between reps"]
+                       : [`INTERVAL prescription: 8 x 800m 跑步 @ ${intervalPace}`, "组间慢走休息 90 秒"],
+                     targetDuration: 45
+                   }
+                 : {
+                     type: "MainSet",
+                     name: isEnglish ? "Weekend Long Run" : "周末长距离跑",
+                     format: "Relax",
+                     details: isEnglish
+                       ? [`EASY prescription: ${readinessVolumeMultiplier < 1 ? "8km - 10km" : "12km - 15km"} easy run @ ${basePace}`, "Target Zone 2 heart rate", "Focus on cadence and relaxed breathing"]
+                       : [`EASY prescription: ${readinessVolumeMultiplier < 1 ? "8km - 10km" : "12km - 15km"} 轻松跑 @ ${basePace}`, `目标心率 Zone 2`, "注意步频与呼吸的结合"],
+                     targetDuration: readinessVolumeMultiplier < 1 ? 60 : 90
+                   };
                  
              if (isTapering) {
-                 runTitle = "赛前配速锁定 (Race Pace Lock-in)";
-                 runDesc = "不再追求极速与大容量，仅寻找比赛当天的发力感。";
-                 runningBlock = { type: "MainSet", name: "目标配速巡航", format: "Intervals", details: [`4 x 1km 跑步 (严格锁定比赛目标配速 ${basePace})`, "组间休息 2 分钟"], targetDuration: 30 };
+                 runTitle = isEnglish ? "Race Pace Lock-In" : "赛前配速锁定";
+                 runDesc = isEnglish ? "Lock in race-day effort without chasing extra volume." : "不再追求极速与大容量，仅寻找比赛当天的发力感。";
+                 runningBlock = {
+                   type: "MainSet",
+                   name: isEnglish ? "Target Pace Cruise" : "目标配速巡航",
+                   format: "Intervals",
+                   details: isEnglish
+                     ? [`RACE prescription: 4 x 1km run @ ${racePace}`, "Rest 2 minutes between reps"]
+                     : [`RACE prescription: 4 x 1km 跑步 @ ${racePace}`, "组间休息 2 分钟"],
+                   targetDuration: 30
+                 };
              }
              
-             fallbackPlan.push({
+             pushFallbackDay({
                  date: fbDate,
                  isRestDay: false,
                  phase: basePhase,
                  title: runTitle,
                  description: runDesc,
                  blocks: [
-                     { type: "WarmUp", name: "跑前动态激活", format: "Relax", details: ["马克操 (A/B Skips)", "脚踝与髋部灵活性激活"], targetDuration: 15 },
+                     {
+                       type: "WarmUp",
+                       name: isEnglish ? "Dynamic Run Prep" : "跑前动态激活",
+                       format: "Relax",
+                       details: isEnglish ? ["A/B skips", "Ankle and hip mobility"] : ["马克操 (A/B Skips)", "脚踝与髋部灵活性激活"],
+                       targetDuration: 15
+                     },
                      runningBlock,
-                     { type: "CoolDown", name: "跑后排酸", format: "Relax", details: ["静态拉伸小腿与大腿后侧"], targetDuration: 10 }
+                     {
+                       type: "CoolDown",
+                       name: isEnglish ? "Post-Run Flush" : "跑后排酸",
+                       format: "Relax",
+                       details: isEnglish ? ["Static calf and hamstring stretch"] : ["静态拉伸小腿与大腿后侧"],
+                       targetDuration: 10
+                     }
                  ]
-             });
+             } as TrainingDay);
         } else {
-             let workoutTitle = "混合引擎 (Mixed Engine)";
-             let workoutDesc = "结合跑步与 HYROX 核心站点的交叉训练。";
-             let mainSet = { type: "MainSet", name: "综合训练", format: "ROUNDS", details: ["3 轮:", "1km 跑步", `25m 雪橇推 (${sledPushW})`], targetDuration: 35 };
+             let workoutTitle = isEnglish ? "Mixed Engine" : "混合引擎";
+             let workoutDesc = isEnglish ? "Combine running with HYROX station work." : "结合跑步与 HYROX 核心站点的交叉训练。";
+             let mainSet = {
+               type: "MainSet",
+               name: isEnglish ? "Mixed Conditioning" : "综合训练",
+               format: "ROUNDS",
+               details: isEnglish ? ["3 rounds:", "1km run", `25m Sled Push (${sledPushW})`] : ["3 轮:", "1km 跑步", `25m 雪橇推 (${sledPushW})`],
+               targetDuration: 35
+             };
 
              if (isTapering) {
-                 workoutTitle = "降频引擎复苏 (Speed & Engine Maintenance)";
-                 workoutDesc = `距离比赛还有 ${weeksOut} 周，坚决不碰导致 DOMS 的重型设备，保持呼吸畅通的短冲为主。`;
-                 mainSet = { type: "MainSet", name: "速度唤醒组", format: "Intervals", details: ["5 x 400m 跑步 (轻松偏快)", "每组间隔 15 波比跳", "完全休息 2 分钟"], targetDuration: 25 };
-                 if (isHighFatigue) workoutDesc += " 同时严控心率，今日禁止进入 Zone 4。";
+                 workoutTitle = isEnglish ? "Speed and Engine Maintenance" : "降频引擎复苏";
+                 workoutDesc = isEnglish
+                   ? `${weeksOut} weeks to race. Keep the lungs sharp without heavy DOMS-producing work.`
+                   : `距离比赛还有 ${weeksOut} 周，坚决不碰导致 DOMS 的重型设备，保持呼吸畅通的短冲为主。`;
+                 mainSet = {
+                   type: "MainSet",
+                   name: isEnglish ? "Speed Wake-Up Set" : "速度唤醒组",
+                   format: "Intervals",
+                   details: isEnglish
+                     ? [`INTERVAL prescription: 5 x 400m run @ ${intervalPace}`, "15 burpees between reps", "Full 2-minute recovery"]
+                     : [`INTERVAL prescription: 5 x 400m 跑步 @ ${intervalPace}`, "每组间隔 15 波比跳", "完全休息 2 分钟"],
+                   targetDuration: 25
+                 };
+                 if (isHighFatigue) workoutDesc += isEnglish ? " Keep heart rate controlled and avoid Zone 4 today." : " 同时严控心率，今日禁止进入 Zone 4。";
              } else {
                  if (isHighFatigue) {
-                     workoutTitle = "有氧引擎修复 (Easy Engine)";
-                     workoutDesc = "近期 RPE 高光预警，今日免去大重量，改为纯粹的低心率引擎打磨。";
-                     mainSet = { type: "MainSet", name: "Zone 2 修复", format: "Relax", details: ["40分钟 划船机/SkiErg 交替", "严格控制心率在 Zone 2"], targetDuration: 40 };
+                     workoutTitle = isEnglish ? "Easy Engine Repair" : "有氧引擎修复";
+                     workoutDesc = isEnglish ? "Recent readiness is high risk, so today removes heavy load and keeps work aerobic." : "近期 readiness 风险偏高，今日免去大重量，改为纯粹的低心率引擎打磨。";
+                     mainSet = {
+                       type: "MainSet",
+                       name: isEnglish ? "Zone 2 Repair" : "Zone 2 修复",
+                       format: "Relax",
+                       details: isEnglish ? [`EASY prescription: 40 minutes low-impact cardio at ${basePace} equivalent effort`, "Keep heart rate strictly in Zone 2"] : [`EASY prescription: 40分钟 低冲击有氧 @ ${basePace} 等效强度`, "严格控制心率在 Zone 2"],
+                       targetDuration: 40
+                     };
                  } else if (isLowFatigue) {
-                     workoutTitle = "超负荷赛事模拟 (HYROX Overload)";
-                     workoutDesc = "系统监测到你近期状态极佳，今日追加魔鬼级容量冲击你的转换极限！";
-                     mainSet = { type: "MainSet", name: "赛事模拟缩影", format: "For Time", details: ["1.5km 跑步", `50m 重装雪橇推 (${sledPushW})`, "1km 跑步", `50m 沙袋弓箭步 (${lungeW})`, "1km 跑步", `100 墙球 (${wallBallW})`], targetDuration: 55 };
+                     workoutTitle = isEnglish ? "HYROX Overload" : "超负荷赛事模拟";
+                     workoutDesc = isEnglish ? "Recent training response is strong, so today adds a demanding race-specific capacity hit." : "系统监测到你近期状态极佳，今日追加魔鬼级容量冲击你的转换极限！";
+                     mainSet = {
+                       type: "MainSet",
+                       name: isEnglish ? "Race Simulation Slice" : "赛事模拟缩影",
+                       format: "For Time",
+                       details: isEnglish
+                         ? [`RACE prescription: 1.5km run @ ${racePace}`, `50m heavy Sled Push (${sledPushW})`, `RACE prescription: 1km run @ ${racePace}`, `50m Sandbag Lunges (${lungeW})`, `RACE prescription: 1km run @ ${racePace}`, `100 Wall Balls (${wallBallW})`]
+                         : [`RACE prescription: 1.5km 跑步 @ ${racePace}`, `50m 重装雪橇推 (${sledPushW})`, `RACE prescription: 1km 跑步 @ ${racePace}`, `50m 沙袋弓箭步 (${lungeW})`, `RACE prescription: 1km 跑步 @ ${racePace}`, `100 墙球 (${wallBallW})`],
+                       targetDuration: 55
+                     };
                  } else {
                      // 正常情况下的丰富变化 (0, 2, 3, 5 are the non-rest days)
                      if (i === 0) {
-                         workoutTitle = "拉力与有氧 (Pull & Cardio)";
-                         workoutDesc = "强化背部拉力与持续输出能力。";
-                         mainSet = { type: "MainSet", name: "阶梯递减", format: "For Time", details: ["1000m SkiErg", `50m 雪橇拉 (${sledPullW})`, "800m 跑步", `25m 雪橇拉 (${sledPullW})`, "500m SkiErg"], targetDuration: 35 };
+                         workoutTitle = isEnglish ? "Pull and Cardio" : "拉力与有氧";
+                         workoutDesc = isEnglish ? "Build pulling strength and sustained output." : "强化背部拉力与持续输出能力。";
+                         mainSet = { type: "MainSet", name: isEnglish ? "Descending Ladder" : "阶梯递减", format: "For Time", details: isEnglish ? ["1000m SkiErg", `50m Sled Pull (${sledPullW})`, `THRESHOLD prescription: 800m run @ ${thresholdPace}`, `25m Sled Pull (${sledPullW})`, "500m SkiErg"] : ["1000m SkiErg", `50m 雪橇拉 (${sledPullW})`, `THRESHOLD prescription: 800m 跑步 @ ${thresholdPace}`, `25m 雪橇拉 (${sledPullW})`, "500m SkiErg"], targetDuration: 35 };
                      } else if (i === 2) {
-                         workoutTitle = "下肢与核心 (Legs & Core)";
-                         workoutDesc = "应对沙袋弓箭步与墙球的极度酸痛。";
-                         mainSet = { type: "MainSet", name: "EMOM 30", format: "EMOM", details: [`分钟 1: 15 墙球 (${wallBallW})`, `分钟 2: 20m 沙袋弓箭步 (${lungeW})`, "分钟 3: 15 卡 划船"], targetDuration: 30 };
+                         workoutTitle = isEnglish ? "Legs and Core" : "下肢与核心";
+                         workoutDesc = isEnglish ? "Prepare for the leg burn of sandbag lunges and wall balls." : "应对沙袋弓箭步与墙球的极度酸痛。";
+                         mainSet = { type: "MainSet", name: "EMOM 30", format: "EMOM", details: isEnglish ? [`Minute 1: 15 Wall Balls (${wallBallW})`, `Minute 2: 20m Sandbag Lunges (${lungeW})`, "Minute 3: 15 Cal RowErg"] : [`分钟 1: 15 墙球 (${wallBallW})`, `分钟 2: 20m 沙袋弓箭步 (${lungeW})`, "分钟 3: 15 卡 划船"], targetDuration: 30 };
                      } else if (i === 3) {
-                         workoutTitle = "推力极限 (Push & Engine)";
-                         workoutDesc = "雪橇推与波比跳的绝望组合。";
-                         mainSet = { type: "MainSet", name: "死亡交叉", format: "ROUNDS", details: ["4 轮:", "800m 跑步", `25m 雪橇推 (${sledPushW})`, "20 波比跳远 (Burpee Broad Jumps)"], targetDuration: 40 };
+                         workoutTitle = isEnglish ? "Push and Engine" : "推力极限";
+                         workoutDesc = isEnglish ? "A hard pairing of sled push and burpee broad jumps." : "雪橇推与波比跳的绝望组合。";
+                         mainSet = { type: "MainSet", name: isEnglish ? "Push Crossover" : "死亡交叉", format: "ROUNDS", details: isEnglish ? ["4 rounds:", `RACE prescription: 800m run @ ${racePace}`, `25m Sled Push (${sledPushW})`, "20 Burpee Broad Jumps"] : ["4 轮:", `RACE prescription: 800m 跑步 @ ${racePace}`, `25m 雪橇推 (${sledPushW})`, "20 波比跳远"], targetDuration: 40 };
                      } else {
-                         workoutTitle = "绝对引擎建设 (Pure Engine)";
-                         workoutDesc = "在沉重的无氧消耗后维持体能。";
-                         mainSet = { type: "MainSet", name: "引擎轰炸", format: "Intervals", details: ["2000m 划船", "1000m 跑步", `100m 农夫走 (${farmerW})`, "1000m 跑步", "2000m SkiErg"], targetDuration: 45 };
+                         workoutTitle = isEnglish ? "Pure Engine" : "绝对引擎建设";
+                         workoutDesc = isEnglish ? "Sustain output after heavy anaerobic demand." : "在沉重的无氧消耗后维持体能。";
+                         mainSet = { type: "MainSet", name: isEnglish ? "Engine Bomb" : "引擎轰炸", format: "Intervals", details: isEnglish ? ["2000m RowErg", `THRESHOLD prescription: 1000m run @ ${thresholdPace}`, `100m Farmer Carry (${farmerW})`, `RACE prescription: 1000m run @ ${racePace}`, "2000m SkiErg"] : ["2000m 划船", `THRESHOLD prescription: 1000m 跑步 @ ${thresholdPace}`, `100m 农夫走 (${farmerW})`, `RACE prescription: 1000m 跑步 @ ${racePace}`, "2000m SkiErg"], targetDuration: 45 };
                      }
                  }
              }
 
-             fallbackPlan.push({
+             pushFallbackDay({
                  date: fbDate,
                  isRestDay: false,
                  phase: basePhase,
                  title: workoutTitle,
                  description: workoutDesc,
                  blocks: [
-                     { type: "WarmUp", name: "全身动态激活", format: "For Time", details: ["5分钟 慢跑或划船", "10 徒手深蹲", "10 俯卧撑", "动态拉伸"], targetDuration: 10 },
+                     {
+                       type: "WarmUp",
+                       name: isEnglish ? "Full-Body Dynamic Prep" : "全身动态激活",
+                       format: "For Time",
+                       details: isEnglish ? ["5 minutes easy jog or row", "10 air squats", "10 push-ups", "Dynamic mobility"] : ["5分钟 慢跑或划船", "10 徒手深蹲", "10 俯卧撑", "动态拉伸"],
+                       targetDuration: 10
+                     },
                      mainSet,
-                     { type: "CoolDown", name: "静态冥想与排酸", format: "Relax", details: ["小腿按摩滚轴放松", "彻底拉伸腿部筋膜"], targetDuration: 10 }
+                     {
+                       type: "CoolDown",
+                       name: isEnglish ? "Static Flush" : "静态冥想与排酸",
+                       format: "Relax",
+                       details: isEnglish ? ["Calf foam rolling", "Full lower-body stretch"] : ["小腿按摩滚轴放松", "彻底拉伸腿部筋膜"],
+                       targetDuration: 10
+                     }
                  ]
-             });
+             } as TrainingDay);
         }
     }
-    return NextResponse.json(fallbackPlan);
+    return NextResponse.json(assertCoachReadyMicrocycle(assertSevenDayPlan(fallbackPlan), { equipment: requestedEquipment }));
   }
 }

@@ -1,14 +1,14 @@
 import { auth } from "@/auth"
 
-export default auth((req) => {
+export const proxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
 
   const isAuthRoute = pathname === '/login' || pathname === '/register';
   const isPublicRoute = pathname === '/';
 
-  // Allow API routes to be handled by their respective handlers
-  if (pathname.startsWith('/api/auth')) {
+  // API routes own their auth behavior so callers get JSON errors, not login HTML.
+  if (pathname.startsWith('/api')) {
     return;
   }
 
@@ -25,5 +25,5 @@ export default auth((req) => {
 })
 
 export const config = {
-  matcher: ['/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.webp$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.webp$).*)'],
 }

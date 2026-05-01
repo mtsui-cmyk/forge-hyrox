@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { FastForward, Flame, Flag, Activity, Timer, Download } from "lucide-react";
 import html2canvas from "html2canvas";
 import { BottomNavBar } from "@/components/BottomNavBar";
 import { useTranslation } from "@/components/I18nProvider";
+import { useTrainingStore } from "@/store/useTrainingStore";
+import { deriveRunPrescriptions, formatPace, parseClockTime, type RunPrescription } from "@/lib/runPrescription";
 
 // Proportional distribution heuristics for HYROX
 const STATIONS = [
@@ -18,32 +20,11 @@ const STATIONS = [
   { id: "WallBalls", name: "Wall Balls", weight: 0.08 }
 ];
 
-const WEIGHT_RUN_TOTAL = 0.46;
 const WEIGHT_ROXZONE_TOTAL = 0.10;
-
-const formatTimeFromMs = (ms: number) => {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-  return `${minutes}:${seconds}`;
-};
-
-const parseTimeToMs = (timeStr: string) => {
-  const parts = timeStr.split(":");
-  let hours = 0, mins = 0, secs = 0;
-  if (parts.length === 3) {
-    hours = parseInt(parts[0], 10) || 0;
-    mins = parseInt(parts[1], 10) || 0;
-    secs = parseInt(parts[2], 10) || 0;
-  } else if (parts.length === 2) {
-    mins = parseInt(parts[0], 10) || 0;
-    secs = parseInt(parts[1], 10) || 0;
-  }
-  return (hours * 3600 + mins * 60 + secs) * 1000;
-}
 
 export default function PacingEnginePage() {
   const { t } = useTranslation();
+  const { prs, setPrs } = useTrainingStore();
   const [targetTimeStr, setTargetTimeStr] = useState("01:15:00");
   const [isGenerated, setIsGenerated] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
@@ -53,15 +34,38 @@ export default function PacingEnginePage() {
   const [runPaceMs, setRunPaceMs] = useState(0); 
   const [roxzonePaceMs, setRoxzonePaceMs] = useState(0); 
   const [stationTimes, setStationTimes] = useState<Record<string, number>>({});
+  const [runPrescriptions, setRunPrescriptions] = useState<RunPrescription[]>([]);
+
+  useEffect(() => {
+    async function loadPrs() {
+      if (Object.keys(prs).length > 0) return;
+      try {
+        const res = await fetch("/api/sync");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.prs && Object.keys(data.prs).length > 0) setPrs(data.prs);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    loadPrs();
+  }, [prs, setPrs]);
 
   const handleGenerate = () => {
-    const totalMs = parseTimeToMs(targetTimeStr);
+    const totalMs = parseClockTime(targetTimeStr);
     if (totalMs < 1000 * 60 * 30 || totalMs > 1000 * 60 * 300) {
       alert(t("pacing.invalidTime"));
       return;
     }
 
-    setRunPaceMs(Math.floor((totalMs * WEIGHT_RUN_TOTAL) / 8));
+    const nextRunPrescriptions = deriveRunPrescriptions({
+      targetTimeMs: totalMs,
+      run1kmPrMs: prs.Run1km,
+    });
+    const racePrescription = nextRunPrescriptions.find((item) => item.label === "race") || nextRunPrescriptions[1];
+
+    setRunPaceMs(racePrescription.paceMsPerKm);
+    setRunPrescriptions(nextRunPrescriptions);
     setRoxzonePaceMs(Math.floor((totalMs * WEIGHT_ROXZONE_TOTAL) / 8));
 
     const stationsMsMap: Record<string, number> = {};
@@ -170,10 +174,20 @@ export default function PacingEnginePage() {
                      <h4 className="font-display font-black uppercase tracking-tight text-lg leading-none">{t("pacing.run8x")}</h4>
                    </div>
                    <div className="text-right">
-                     <p className="font-mono text-2xl font-black text-on-surface leading-none">{formatTimeFromMs(runPaceMs)}</p>
+                     <p className="font-mono text-2xl font-black text-on-surface leading-none">{formatPace(runPaceMs)}</p>
                      <p className="font-display text-xs text-outline font-bold mt-1">MIN/KM</p>
                    </div>
                  </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {runPrescriptions.map((item) => (
+                  <div key={item.label} className="bg-surface-container-low border border-outline/10 rounded-xl p-4">
+                    <span className="font-display text-[9px] uppercase tracking-widest font-black text-outline block mb-1">{item.label}</span>
+                    <p className="font-mono text-xl font-black text-primary leading-none">{formatPace(item.paceMsPerKm)}</p>
+                    <p className="text-[10px] text-on-surface/50 leading-relaxed mt-2">{item.purpose}</p>
+                  </div>
+                ))}
               </div>
 
               {/* Transition Pace */}
@@ -188,7 +202,7 @@ export default function PacingEnginePage() {
                      <h4 className="font-display font-black uppercase tracking-tight text-lg leading-none">{t("pacing.roxzone8x")}</h4>
                    </div>
                    <div className="text-right">
-                     <p className="font-mono text-2xl font-black text-on-surface leading-none">{formatTimeFromMs(roxzonePaceMs)}</p>
+                     <p className="font-mono text-2xl font-black text-on-surface leading-none">{formatPace(roxzonePaceMs)}</p>
                      <p className="font-display text-xs text-outline font-bold mt-1">MIN/CYCLE</p>
                    </div>
                  </div>
@@ -205,7 +219,7 @@ export default function PacingEnginePage() {
                     </div>
                     <div className="flex-1 flex justify-between items-center pr-4">
                       <div className="font-display font-bold text-sm tracking-tight text-on-surface uppercase">{station.name}</div>
-                      <div className="text-lg font-mono font-black text-primary drop-shadow-md">{formatTimeFromMs(stationTimes[station.id])}</div>
+                      <div className="text-lg font-mono font-black text-primary drop-shadow-md">{formatPace(stationTimes[station.id])}</div>
                     </div>
                   </div>
                 ))}

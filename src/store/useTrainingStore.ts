@@ -2,9 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type WodBlock = {
-  type: "WarmUp" | "MainSet" | "CoolDown" | "Strength";
+  type: "WarmUp" | "MainSet" | "CoolDown" | "Strength" | "Relax";
   name: string; // e.g., "EMOM 24" or "3 Rounds"
-  format: "For Time" | "EMOM" | "AMRAP" | "Rounds" | "Sets" | "Relax";
+  format: "For Time" | "EMOM" | "AMRAP" | "Rounds" | "ROUNDS" | "Sets" | "Relax" | "Intervals";
   details: string[]; // e.g., ["15 Cal SkiErg", "20 Wall Balls"]
   targetDuration?: number; // target time in mins
 };

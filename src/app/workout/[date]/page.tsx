@@ -5,16 +5,27 @@ import { useRouter, useParams } from "next/navigation";
 import { useTrainingStore, BlockLog, DailyLog, WOD } from "@/store/useTrainingStore";
 import { ArrowLeft, CheckCircle, Timer, Activity, Play, Square, RotateCcw, Edit3, Save, RefreshCw, X, Flame } from "lucide-react";
 import { useTranslation } from "@/components/I18nProvider";
+import { normalizeTrainingPlan, normalizeTrainingPlanArray } from "@/lib/trainingPlan";
+import {
+  buildLocalSubstitution,
+  DEFAULT_EQUIPMENT_AVAILABILITY,
+  EQUIPMENT_LABELS,
+  EquipmentAvailability,
+  EquipmentKey,
+  getMissingEquipment,
+} from "@/lib/equipmentSubstitutions";
 
 export default function WorkoutDayPage() {
   const router = useRouter();
   const params = useParams();
   const dateStr = params.date as string;
 
-  const { microcycle, completedLogs, logWorkoutResult, updateWod } = useTrainingStore();
-  const { lang } = useTranslation();
+  const { microcycle, completedLogs, logWorkoutResult, updateWod, setMicrocycle } = useTrainingStore();
+  const { lang, t } = useTranslation();
   const wod = microcycle[dateStr];
   const existingLog = completedLogs[dateStr];
+  const [isRestoringWod, setIsRestoringWod] = useState(false);
+  const [hasTriedRestoringWod, setHasTriedRestoringWod] = useState(false);
 
   const [isEditingWod, setIsEditingWod] = useState(false);
   const [editedWod, setEditedWod] = useState<WOD | null>(null);
@@ -29,12 +40,52 @@ export default function WorkoutDayPage() {
     }
   }, [wod, editedWod]);
 
+  useEffect(() => {
+    async function restoreWodFromDb() {
+      if (wod || hasTriedRestoringWod || isRestoringWod) return;
+      setIsRestoringWod(true);
+      try {
+        const res = await fetch("/api/sync");
+        if (!res.ok) throw new Error("Failed to restore WOD");
+        const data = await res.json();
+        if (data.microcycle) {
+          setMicrocycle(normalizeTrainingPlanArray(data.microcycle) as any);
+        }
+        if (data.completedLogs) {
+          for (const [date, log] of Object.entries(data.completedLogs)) {
+            useTrainingStore.getState().logWorkoutResult(date, log as any);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setHasTriedRestoringWod(true);
+        setIsRestoringWod(false);
+      }
+    }
+
+    restoreWodFromDb();
+  }, [wod, hasTriedRestoringWod, isRestoringWod, setMicrocycle]);
+
   const [logs, setLogs] = useState<Record<number, BlockLog>>(existingLog?.blockLogs || {});
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
 
   const [showRpeModal, setShowRpeModal] = useState(false);
   const [rpe, setRpe] = useState<number>(8);
+  const [isSavingLog, setIsSavingLog] = useState(false);
+  const [todayEquipment, setTodayEquipment] = useState<EquipmentAvailability>(DEFAULT_EQUIPMENT_AVAILABILITY);
+
+  useEffect(() => {
+    try {
+      const savedToday = localStorage.getItem(`hyroxTodayEquipment:${dateStr}`);
+      const savedDefault = localStorage.getItem("hyroxEquipment");
+      const parsed = savedToday ? JSON.parse(savedToday) : savedDefault ? JSON.parse(savedDefault) : {};
+      setTodayEquipment({ ...DEFAULT_EQUIPMENT_AVAILABILITY, ...parsed });
+    } catch {
+      setTodayEquipment(DEFAULT_EQUIPMENT_AVAILABILITY);
+    }
+  }, [dateStr]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -59,7 +110,8 @@ export default function WorkoutDayPage() {
     }));
   };
 
-  const submitLog = () => {
+  const submitLog = async () => {
+    setIsSavingLog(true);
     const totalTimeMsFromLogs = Object.values(logs).reduce((acc, log) => acc + (log.timeTakenMs || 0), 0);
     const finalTotalTime = totalTimeMsFromLogs > 0 ? totalTimeMsFromLogs : elapsedTime;
 
@@ -70,15 +122,64 @@ export default function WorkoutDayPage() {
       completedAt: new Date().toISOString(),
       rpe
     };
-    logWorkoutResult(dateStr, dailyLog);
-    router.push("/dashboard");
+    try {
+      const res = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completedLogs: { [dateStr]: dailyLog } }),
+      });
+      if (!res.ok) throw new Error("Failed to sync workout log");
+      logWorkoutResult(dateStr, dailyLog);
+      router.push("/dashboard");
+    } catch (error) {
+      console.error(error);
+      alert(t("workout.syncError"));
+    } finally {
+      setIsSavingLog(false);
+    }
   };
 
-  const handleSaveEditedWod = () => {
+  const handleSaveEditedWod = async () => {
     if (editedWod) {
       updateWod(dateStr, editedWod);
+      syncMicrocycle(editedWod);
       setIsEditingWod(false);
     }
+  };
+
+  const syncMicrocycle = (updatedWod: WOD) => {
+    const nextCycle = normalizeTrainingPlan({
+      ...useTrainingStore.getState().microcycle,
+      [dateStr]: updatedWod,
+    });
+    fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ microcycle: nextCycle }),
+    }).catch(e => console.error("Background sync failed", e));
+  };
+
+  const toggleTodayEquipment = (key: EquipmentKey) => {
+    setTodayEquipment((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem(`hyroxTodayEquipment:${dateStr}`, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const applyLocalSubstitution = (idx: number) => {
+    const baseWod = editedWod || wod;
+    const replacement = buildLocalSubstitution(baseWod.blocks[idx] as any, todayEquipment, lang === "zh" ? "zh" : "en");
+    if (!replacement) return;
+
+    const updatedWod = {
+      ...baseWod,
+      blocks: baseWod.blocks.map((block, blockIdx) => blockIdx === idx ? replacement : block),
+    } as WOD;
+
+    setEditedWod(updatedWod);
+    updateWod(dateStr, updatedWod);
+    syncMicrocycle(updatedWod);
   };
 
   const handleUpdateWodBlock = (blockIdx: number, field: string, value: any) => {
@@ -118,6 +219,7 @@ export default function WorkoutDayPage() {
     if (!missingEqText) return;
     setIsSwapping(true);
     try {
+      const baseWod = editedWod || wod;
       const profileRes = await fetch("/api/sync");
       if (!profileRes.ok) throw new Error("Failed to fetch profile");
       const { profileData } = await profileRes.json();
@@ -128,41 +230,47 @@ export default function WorkoutDayPage() {
         body: JSON.stringify({
           profile: profileData.profile,
           missingEquipment: missingEqText,
-          originalBlock: wod.blocks[idx],
-          wodContext: { title: wod.title, description: wod.description },
+          originalBlock: baseWod.blocks[idx],
+          wodContext: { title: baseWod.title, description: baseWod.description },
           lang,
         }),
       });
       if (!res.ok) throw new Error("Failed to swap");
       const newBlock = await res.json();
       
-      const updatedWod = { ...wod };
-      updatedWod.blocks[idx] = newBlock;
+      const updatedWod = {
+        ...baseWod,
+        blocks: baseWod.blocks.map((block, blockIdx) => blockIdx === idx ? newBlock : block),
+      } as WOD;
       
+      setEditedWod(updatedWod);
       updateWod(dateStr, updatedWod);
-      fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          microcycle: { data: JSON.stringify(useTrainingStore.getState().microcycle) }
-        }),
-      }).catch(e => console.error("Background sync failed", e));
+      syncMicrocycle(updatedWod);
 
       setSwappingBlockIdx(null);
       setMissingEqText("");
     } catch (e) {
       console.error(e);
-      alert("替换动作失败，请重试。");
+      alert(t("workout.swapError"));
     } finally {
       setIsSwapping(false);
     }
   };
 
+  if (!wod && isRestoringWod) {
+    return (
+      <main className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 text-center">
+         <div className="animate-spin w-10 h-10 border-4 border-surface-container-high border-t-primary rounded-full mb-4" />
+	         <h2 className="text-lg font-black font-display text-on-surface uppercase">{t("workout.restoring")}</h2>
+      </main>
+    );
+  }
+
   if (!wod) {
     return (
       <main className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 text-center">
-         <h2 className="text-2xl font-black font-display text-on-surface uppercase mb-4">WOD NOT FOUND</h2>
-         <button onClick={() => router.push("/dashboard")} className="font-display font-bold text-[10px] uppercase text-primary tracking-widest px-4 py-2 border border-primary rounded-lg">Return to Deck</button>
+	         <h2 className="text-2xl font-black font-display text-on-surface uppercase mb-4">{t("workout.notFound")}</h2>
+	         <button onClick={() => router.push("/dashboard")} className="font-display font-bold text-[10px] uppercase text-primary tracking-widest px-4 py-2 border border-primary rounded-lg">{t("workout.goHome")}</button>
       </main>
     );
   }
@@ -175,7 +283,7 @@ export default function WorkoutDayPage() {
           <button 
             onClick={() => router.push("/dashboard")}
             className="flex items-center text-on-surface/60 hover:text-primary transition-colors pr-4 py-2"
-            aria-label="返回主页"
+	            aria-label={t("workout.back")}
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
@@ -183,7 +291,7 @@ export default function WorkoutDayPage() {
           <div className="flex flex-col items-center">
              <div className="flex gap-1 items-center">
                 <Flame className="w-3 h-3 text-primary fill-primary" />
-                <span className="font-display font-black text-sm tracking-widest uppercase italic text-on-surface">WORKOUT LOG</span>
+	                <span className="font-display font-black text-sm tracking-widest uppercase italic text-on-surface">{t("workout.title")}</span>
              </div>
              <span className="font-mono text-[10px] text-outline tracking-widest">{dateStr}</span>
           </div>
@@ -201,7 +309,7 @@ export default function WorkoutDayPage() {
           <section className="bg-surface-container rounded-2xl shadow-xl overflow-hidden relative border border-outline/30 pb-6 pt-8 flex flex-col items-center group">
             <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             
-            <span className="font-display text-[10px] font-bold uppercase tracking-[0.3em] text-outline mb-4">CRITICAL TIMER</span>
+	            <span className="font-display text-[10px] font-bold uppercase tracking-[0.3em] text-outline mb-4">{t("workout.criticalTimer")}</span>
             
             <h2 className="text-6xl font-black font-mono tracking-tighter text-primary mb-8 relative z-10 drop-shadow-[0_0_15px_rgba(255,222,0,0.3)] tabular-nums">
               {formatStopwatch(elapsedTime)}
@@ -212,7 +320,7 @@ export default function WorkoutDayPage() {
                 <button 
                   onClick={() => setIsRunning(true)}
                   className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center hover:bg-yellow-400 transition-transform active:scale-90 shadow-[0_10px_20px_rgba(255,222,0,0.3)]"
-                  aria-label="开始计时"
+	                  aria-label={t("workout.startTimer")}
                 >
                   <Play className="w-8 h-8 ml-1" />
                 </button>
@@ -220,7 +328,7 @@ export default function WorkoutDayPage() {
                 <button 
                   onClick={() => setIsRunning(false)}
                   className="w-16 h-16 rounded-full bg-red-600 border border-red-500 text-white flex items-center justify-center hover:bg-red-500 transition-transform active:scale-90 shadow-[0_10px_20px_rgba(220,38,38,0.4)]"
-                  aria-label="停止计时"
+	                  aria-label={t("workout.stopTimer")}
                 >
                   <Square className="w-6 h-6" />
                 </button>
@@ -230,7 +338,7 @@ export default function WorkoutDayPage() {
                 onClick={() => { setIsRunning(false); setElapsedTime(0); }}
                 disabled={elapsedTime === 0}
                 className="w-16 h-16 rounded-full bg-surface-container-high border border-outline/30 text-on-surface flex items-center justify-center hover:bg-surface-container-highest disabled:opacity-30 transition-transform active:scale-90"
-                aria-label="重置计时器"
+	                aria-label={t("workout.resetTimer")}
               >
                 <RotateCcw className="w-6 h-6" />
               </button>
@@ -251,33 +359,77 @@ export default function WorkoutDayPage() {
                 }`}
               >
                 {isEditingWod ? (
-                  <><Save className="w-3 h-3" /> 保存</>
-                ) : (
-                  <><Edit3 className="w-3 h-3" /> 改</>
+	                  <><Save className="w-3 h-3" /> {t("workout.saveShort")}</>
+	                ) : (
+	                  <><Edit3 className="w-3 h-3" /> {t("workout.editShort")}</>
                 )}
               </button>
             )}
           </div>
           
           <div className="flex flex-col gap-1 items-start">
-             <span className="font-display text-[10px] uppercase font-bold tracking-widest text-primary border border-primary px-1.5 py-0.5 rounded-sm">PHASE: {wod.phase}</span>
+	             <span className="font-display text-[10px] uppercase font-bold tracking-widest text-primary border border-primary px-1.5 py-0.5 rounded-sm">{t("workout.phase")}: {wod.phase}</span>
              <p className="text-xs text-outline">{wod.description}</p>
           </div>
 
           {existingLog?.rpe && (
             <div className="mt-4 inline-flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-lg border border-outline/20">
-              <span className="font-display text-[10px] uppercase text-outline font-bold tracking-widest">FATIGUE:</span>
+	              <span className="font-display text-[10px] uppercase text-outline font-bold tracking-widest">{t("workout.fatigue")}:</span>
               <span className="font-mono font-bold text-primary">RPE {existingLog.rpe}/10</span>
             </div>
           )}
         </section>
+
+        {!existingLog && !wod.isRestDay && (
+          <section className="bg-surface-container-low rounded-xl border border-outline/20 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+	                <p className="font-display text-[10px] text-outline font-bold uppercase tracking-widest mb-1">{t("workout.todayGym")}</p>
+	                <h3 className="font-display text-lg font-black uppercase italic tracking-tight text-on-surface">{t("workout.equipmentAvailability")}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTodayEquipment(DEFAULT_EQUIPMENT_AVAILABILITY);
+                  localStorage.removeItem(`hyroxTodayEquipment:${dateStr}`);
+                }}
+                className="shrink-0 px-3 py-2 rounded-lg border border-outline/20 text-[10px] font-bold uppercase tracking-widest text-outline hover:text-on-surface hover:bg-surface-container transition-colors"
+              >
+	                {t("workout.reset")}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {(Object.keys(EQUIPMENT_LABELS) as EquipmentKey[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleTodayEquipment(key)}
+                  className={`px-3 py-3 rounded-lg text-left border transition-colors ${
+                    todayEquipment[key]
+                      ? "bg-primary/10 border-primary/40 text-primary"
+                      : "bg-surface border-outline/20 text-on-surface/40"
+                  }`}
+                >
+                  <span className="block font-display text-[10px] font-black uppercase tracking-widest">
+                    {EQUIPMENT_LABELS[key]}
+                  </span>
+                  <span className="block text-[9px] mt-1 font-bold uppercase tracking-wider">
+	                    {todayEquipment[key] ? t("workout.available") : t("workout.missing")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Blocks rendering */}
         <section className="space-y-4">
           {(editedWod || wod).blocks.map((block, idx) => {
             const log = logs[idx] || {};
             const isTimeBased = block.format === "For Time" || block.format === "Relax";
-            const isRepBased = block.format === "EMOM" || block.format === "AMRAP" || block.format === "Rounds";
+            const isRepBased = block.format === "EMOM" || block.format === "AMRAP" || block.format === "Rounds" || block.format === "ROUNDS";
+            const missingEquipment = getMissingEquipment(block as any, todayEquipment);
 
             return (
               <div key={idx} className={`bg-surface-container p-4 rounded-xl border transition-colors ${isEditingWod ? 'border-primary/50' : 'border-outline/20'}`}>
@@ -288,7 +440,7 @@ export default function WorkoutDayPage() {
                       <input 
                         type="text" 
                         value={block.name}
-                        placeholder="训练名称"
+	                        placeholder={t("workout.blockNamePlaceholder")}
                         onChange={(e) => handleUpdateWodBlock(idx, 'name', e.target.value)}
                         className="w-full bg-surface-container-high border-none rounded p-2 text-primary font-bold text-sm focus:ring-0 focus:outline-none placeholder:text-outline"
                       />
@@ -311,7 +463,7 @@ export default function WorkoutDayPage() {
                         <input 
                           type="text" 
                           value={detail}
-                          placeholder="训练动作"
+	                          placeholder={t("workout.movementPlaceholder")}
                           onChange={(e) => handleUpdateWodDetail(idx, dIdx, e.target.value)}
                           className="flex-1 bg-surface-container-high border-none rounded p-1 text-on-surface text-sm focus:ring-0 focus:outline-none"
                         />
@@ -322,11 +474,29 @@ export default function WorkoutDayPage() {
                   ))}
                 </ul>
 
+                {!existingLog && !isEditingWod && missingEquipment.length > 0 && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4">
+                    <p className="font-display text-[10px] uppercase tracking-widest font-black text-red-400 mb-2">
+	                      {t("workout.missingToday")}: {missingEquipment.map((item) => EQUIPMENT_LABELS[item]).join(", ")}
+                    </p>
+                    <p className="text-xs text-on-surface/70 leading-relaxed mb-3">
+	                      {t("workout.localSubstitutionDesc")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => applyLocalSubstitution(idx)}
+                      className="w-full py-3 rounded-lg bg-primary text-on-primary font-display font-black text-xs uppercase tracking-widest"
+                    >
+	                      {t("workout.applyLocalSubstitution")}
+                    </button>
+                  </div>
+                )}
+
                 {/* Logger Inputs */}
                 <div className="grid grid-cols-2 gap-3 mt-4">
                   {isTimeBased ? (
                     <div className="col-span-2">
-                      <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">DURATION (MM:SS)</label>
+	                      <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">{t("workout.duration")}</label>
                       <div className="relative">
                         <Timer className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
                         <input 
@@ -342,7 +512,7 @@ export default function WorkoutDayPage() {
                   ) : isRepBased ? (
                     <>
                       <div className="col-span-1">
-                        <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">TOTAL REPS/ROUNDS</label>
+	                        <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">{t("workout.totalRepsRounds")}</label>
                         <div className="relative">
                           <Activity className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
                           <input 
@@ -356,7 +526,7 @@ export default function WorkoutDayPage() {
                         </div>
                       </div>
                       <div className="col-span-1">
-                        <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">DURATION (OPTIONAL)</label>
+	                        <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">{t("workout.timeOptional")}</label>
                         <input 
                           type="text" 
                           placeholder="00:00"
@@ -369,10 +539,10 @@ export default function WorkoutDayPage() {
                     </>
                   ) : (
                     <div className="col-span-2">
-                       <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">NOTES / WEIGHT</label>
+	                       <label className="font-display text-[9px] font-bold text-outline uppercase tracking-widest mb-1.5 block">{t("workout.notesWeight")}</label>
                        <input 
                           type="text" 
-                          placeholder="Ex: 24kg KB, completed unbroken."
+	                          placeholder={t("workout.notesPlaceholder")}
                           value={log.notes || ""}
                           onChange={(e) => handleUpdateLog(idx, 'notes', e.target.value)}
                           disabled={!!existingLog}
@@ -387,13 +557,13 @@ export default function WorkoutDayPage() {
                   <div className="pt-4 mt-4 border-t border-outline/10">
                     {swappingBlockIdx === idx ? (
                       <div className="bg-surface-container-high p-4 rounded-xl border border-primary/20 animate-in fade-in slide-in-from-top-2">
-                        <label className="text-[10px] font-bold tracking-widest text-primary uppercase mb-3 block font-display">SELECT MISSING EQUIPMENT</label>
+	                        <label className="text-[10px] font-bold tracking-widest text-primary uppercase mb-3 block font-display">{t("workout.missingEquipmentLabel")}</label>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             value={missingEqText}
                             onChange={(e) => setMissingEqText(e.target.value)}
-                            placeholder="e.g. SkiErg, Kettlebell..."
+	                            placeholder={t("workout.missingEquipmentPlaceholder")}
                             className="flex-1 bg-surface-container font-sans text-sm text-on-surface px-3 py-2 rounded-lg focus:outline-none border border-outline/30 placeholder:text-outline"
                             disabled={isSwapping}
                           />
@@ -402,13 +572,13 @@ export default function WorkoutDayPage() {
                             disabled={isSwapping || !missingEqText}
                             className="bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-bold disabled:opacity-50 hover:bg-opacity-80 transition-colors flex items-center shadow-lg"
                           >
-                            {isSwapping ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'SWAP'}
+	                            {isSwapping ? <RefreshCw className="w-4 h-4 animate-spin" /> : t("workout.swap")}
                           </button>
                           <button
                             onClick={() => setSwappingBlockIdx(null)}
                             disabled={isSwapping}
                             className="text-outline hover:text-on-surface px-2 transition-colors"
-                            aria-label="取消替换"
+	                            aria-label={t("common.cancel")}
                           >
                             <X className="w-5 h-5" />
                           </button>
@@ -421,7 +591,7 @@ export default function WorkoutDayPage() {
                           className="font-display text-[9px] font-bold uppercase tracking-widest text-outline hover:text-primary flex items-center gap-1.5 transition-colors border-b border-transparent hover:border-primary pb-0.5"
                         >
                           <RefreshCw className="w-3 h-3" />
-                          REQUEST AI Eq. SWAP
+	                          {t("workout.requestSwap")}
                         </button>
                       </div>
                     )}
@@ -438,7 +608,7 @@ export default function WorkoutDayPage() {
             className="w-full mt-8 py-5 kinetic-gradient text-on-primary font-black font-display text-base tracking-widest uppercase rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_20px_40px_rgba(255,222,0,0.2)] hover:scale-[1.02] active:scale-[0.98] sticky bottom-6 z-20"
           >
             <CheckCircle className="w-5 h-5 mr-1" />
-            COMMIT WORKOUT LOG
+	            {t("workout.commitLog")}
           </button>
         )}
       </main>
@@ -448,8 +618,8 @@ export default function WorkoutDayPage() {
         <div className="fixed inset-0 bg-[#0A0A0A]/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md">
           <div className="w-full max-w-sm bg-surface-container-high p-8 rounded-3xl border border-outline/30 shadow-2xl space-y-8 animate-in zoom-in-95 duration-200 relative overflow-hidden">
             <div className="text-center space-y-2 relative z-10">
-              <span className="font-display font-bold text-[10px] uppercase tracking-widest text-outline">POST-WORKOUT DEBRIEF</span>
-              <h2 className="text-3xl font-black italic uppercase font-display text-on-surface tracking-tighter">RATE FATIGUE (RPE)</h2>
+	              <span className="font-display font-bold text-[10px] uppercase tracking-widest text-outline">{t("workout.postWorkoutDebrief")}</span>
+	              <h2 className="text-3xl font-black italic uppercase font-display text-on-surface tracking-tighter">{t("workout.rateFatigue")}</h2>
             </div>
             
             <div className="flex flex-col items-center space-y-8 relative z-10">
@@ -461,27 +631,28 @@ export default function WorkoutDayPage() {
                 min="1" max="10" 
                 value={rpe} 
                 onChange={(e) => setRpe(parseInt(e.target.value))}
-                title="RPE 疲劳度评分"
+	                title={t("rpe.title")}
                 className="w-full accent-primary h-2 bg-surface-container rounded-lg appearance-none cursor-pointer outline-none"
               />
               <div className="flex justify-between w-full text-[9px] text-outline font-bold uppercase tracking-widest font-display">
-                <span>1 - LIGHT EFFORT</span>
-                <span>10 - MAX EFFORT</span>
+	                <span>{t("workout.lightEffort")}</span>
+	                <span>{t("workout.maxEffort")}</span>
               </div>
             </div>
 
             <div className="space-y-3 relative z-10 pt-4 border-t border-outline/10">
                <button 
                  onClick={submitLog}
+                 disabled={isSavingLog}
                  className="w-full py-4 kinetic-gradient text-on-primary font-black font-display uppercase tracking-widest rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] text-sm shadow-[0_10px_20px_rgba(255,222,0,0.2)]"
                >
-                 FINALIZE & SYNC
+	                 {isSavingLog ? t("workout.syncing") : t("workout.finalizeSync")}
                </button>
                <button 
                  onClick={() => setShowRpeModal(false)}
                  className="w-full py-4 bg-transparent text-outline font-bold uppercase tracking-widest font-display text-xs hover:text-on-surface transition-colors rounded-xl"
                >
-                 CANCEL
+	                 {t("common.cancel")}
                </button>
             </div>
             

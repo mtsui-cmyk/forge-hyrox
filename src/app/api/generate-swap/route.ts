@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { normalizeTrainingBlock } from "@/lib/trainingPlan";
 const ALIYUN_API_KEY = process.env.ALIYUN_API_KEY || "";
 const API_URL = process.env.LLM_API_URL || "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages";
 
 export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { profile, missingEquipment, originalBlock, wodContext, lang } = await req.json();
     const isEnglish = lang === 'en';
@@ -73,7 +80,10 @@ Return ONLY valid JSON covering this single block.
     const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/) || responseText.match(/```\n([\s\S]*?)\n```/);
     const cleanJson = jsonMatch ? jsonMatch[1] : responseText;
 
-    return NextResponse.json(JSON.parse(cleanJson.trim()));
+    const normalizedBlock = normalizeTrainingBlock(JSON.parse(cleanJson.trim()));
+    if (!normalizedBlock) throw new Error("LLM returned an invalid replacement block");
+
+    return NextResponse.json(normalizedBlock);
   } catch (error: any) {
     console.error("Qwen Swap Error:", error);
     return NextResponse.json(

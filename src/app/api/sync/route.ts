@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
+import { normalizeTrainingPlan } from '@/lib/trainingPlan';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -18,12 +19,13 @@ export async function POST(req: Request) {
     }
 
     if (microcycle) {
+      const normalizedMicrocycle = normalizeTrainingPlan(microcycle);
       await prisma.microcycle.upsert({
         where: { userId: session.user.id },
-        update: { data: JSON.stringify(microcycle) },
+        update: { data: JSON.stringify(normalizedMicrocycle) },
         create: {
           userId: session.user.id,
-          data: JSON.stringify(microcycle)
+          data: JSON.stringify(normalizedMicrocycle)
         }
       });
     }
@@ -40,6 +42,7 @@ export async function POST(req: Request) {
           update: {
             totalTimeMs: log.totalTimeMs,
             blockLogs: JSON.stringify(log.blockLogs),
+            rpe: typeof log.rpe === 'number' ? log.rpe : null,
             completedAt: new Date(log.completedAt)
           },
           create: {
@@ -47,6 +50,7 @@ export async function POST(req: Request) {
             date: date,
             totalTimeMs: log.totalTimeMs,
             blockLogs: JSON.stringify(log.blockLogs),
+            rpe: typeof log.rpe === 'number' ? log.rpe : null,
             completedAt: new Date(log.completedAt)
           }
         });
@@ -95,11 +99,12 @@ export async function GET(req: Request) {
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
     const formattedLogs: Record<string, unknown> = {};
-    user.dailyLogs.forEach((log: { date: string; totalTimeMs: number; blockLogs: string; completedAt: Date }) => {
+    user.dailyLogs.forEach((log: { date: string; totalTimeMs: number; blockLogs: string; rpe: number | null; completedAt: Date }) => {
       formattedLogs[log.date] = {
         date: log.date,
         totalTimeMs: log.totalTimeMs,
         blockLogs: JSON.parse(log.blockLogs),
+        rpe: log.rpe ?? undefined,
         completedAt: log.completedAt.toISOString()
       };
     });
@@ -111,7 +116,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       profileData: user.profileData ? JSON.parse(user.profileData) : null,
-      microcycle: user.microcycle ? JSON.parse(user.microcycle.data) : null,
+      microcycle: user.microcycle ? normalizeTrainingPlan(JSON.parse(user.microcycle.data)) : null,
       completedLogs: formattedLogs,
       prs: prsObj
     });
