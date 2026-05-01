@@ -15,6 +15,7 @@ export type WOD = {
   phase: string;
   title: string;
   description: string;
+  planAdjustments?: string[];
   coachNotes?: string[];
   blocks: WodBlock[];
 };

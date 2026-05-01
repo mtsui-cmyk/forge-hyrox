@@ -72,6 +72,7 @@
     "readinessYellow": "保持专项训练，但削减总量，避免连续堆叠高强度跑步或雪橇日。",
     "readinessRed": "降低训练容量，避免高冲击超负荷，优先恢复到不适感稳定后再推进。",
     "regenerateTitle": "从所选日期开始重新生成本周计划",
+    "planAdjustments": "本周调整原因",
     "coachNotes": "教练解释",
     "painAlert": "检测到疼痛备注",
     "painAlertDesc": "下一份计划会围绕相关部位保守处理。如果疼痛持续，请咨询专业人士。",

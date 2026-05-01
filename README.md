@@ -27,6 +27,7 @@ This update moves FORGE from a UI prototype toward a usable training product:
 - **Run prescription engine**: target race time and 1km PR now produce easy, race, threshold, and interval paces used by generated running blocks.
 - **Readiness feedback loop**: recent training logs, RPE, and pain/injury notes are summarized into green/yellow/red readiness states with volume guidance.
 - **Coach explanation cards**: each generated day can show concise coach notes explaining why the session, pace, volume, or recovery choice was programmed.
+- **Plan adjustment transparency**: generated plans now persist user-facing reasons when readiness, taper timing, equipment limits, or local fallback logic changes the week.
 - **Database-first training state**: microcycles, edited WODs, substitutions, completed logs, PRs, profile, and equipment settings sync through the database.
 - **LLM API hardening**: LLM-backed routes now require auth, return JSON 401 responses, avoid raw request-body logging, and validate/fallback generated plans.
 - **Safety-aware readiness**: red-flag notes such as chest tightness, dizziness, numbness, or sharp pain trigger more conservative guidance.
@@ -60,6 +61,7 @@ FORGE is a fan-made prototype. It is not an official HYROX application and does 
 - **Pacing engine**: calculate race, easy, threshold, and interval running paces from target finish time and running PRs.
 - **Readiness state**: summarize recent logs into green/yellow/red guidance to reduce or progress training volume.
 - **Coach notes**: explain why each session was programmed and how readiness, race timing, PRs, or equipment shaped the plan.
+- **Plan adjustments**: show why FORGE reduced volume, switched to fallback planning, applied taper logic, or respected missing equipment.
 - **Workout logging**: record block results, notes, total time, and RPE.
 - **PR tracking**: store benchmark results for HYROX stations and use them in planning.
 - **Bilingual product experience**: switch between English and Chinese UI and generated training content.

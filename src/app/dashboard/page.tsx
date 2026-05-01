@@ -35,6 +35,7 @@ export default function Dashboard() {
 
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const selectedWod = microcycle[selectedDateStr];
+  const planAdjustments = selectedWod?.planAdjustments?.filter(Boolean) ?? [];
   const isCompleted = !!completedLogs[selectedDateStr];
   const readiness = summarizeReadiness(completedLogs as any, selectedDateStr);
   const readinessStyles = {
@@ -248,6 +249,29 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+
+        {planAdjustments.length > 0 && (
+          <section className="bg-surface-container border border-primary/30 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg border border-primary/50 text-primary flex items-center justify-center shrink-0">
+                <Brain className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[10px] font-black uppercase tracking-widest text-primary">
+                  {t("dashboard.planAdjustments")}
+                </p>
+                <ul className="space-y-2 mt-3">
+                  {planAdjustments.map((note: string, noteIdx: number) => (
+                    <li key={noteIdx} className="flex gap-2 text-xs leading-relaxed text-on-surface/75">
+                      <span className="text-primary font-black">/</span>
+                      <span>{note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Calendar and Weekly Nav */}
         <section className="space-y-4">

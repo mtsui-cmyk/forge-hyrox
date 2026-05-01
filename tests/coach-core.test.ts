@@ -159,10 +159,12 @@ test("training day normalization preserves coach notes", () => {
     phase: "Build",
     title: "Engine Day",
     description: "Race-specific work",
+    planAdjustments: ["Readiness trimmed this week.", "", 123],
     coachNotes: ["Run paces use the 1km PR.", "Volume was trimmed for readiness."],
     blocks: [workoutBlock(["RACE prescription: 1km run @ 04:19/km"])],
   });
 
   assert.ok(day);
+  assert.deepEqual(day.planAdjustments, ["Readiness trimmed this week."]);
   assert.deepEqual(day.coachNotes, ["Run paces use the 1km PR.", "Volume was trimmed for readiness."]);
 });

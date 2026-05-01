@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import { auth } from "@/auth";
 import { assertSevenDayPlan, type TrainingDay } from "@/lib/trainingPlan";
-import { assertCoachReadyMicrocycle } from "@/lib/coachGuardrails";
+import { assertCoachReadyMicrocycle, validateCoachReadyMicrocycle } from "@/lib/coachGuardrails";
 import {
   buildLocalSubstitution,
   DEFAULT_EQUIPMENT_AVAILABILITY,
+  EQUIPMENT_LABELS,
   type EquipmentAvailability,
 } from "@/lib/equipmentSubstitutions";
 import { deriveRunPrescriptions, formatPace, parseClockTime, type RunPrescription } from "@/lib/runPrescription";
@@ -17,6 +18,65 @@ const logToFile = (msg: string) => {
 
 const ALIYUN_API_KEY = process.env.ALIYUN_API_KEY || "";
 const API_URL = process.env.LLM_API_URL || "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages";
+
+function attachPlanAdjustments(days: TrainingDay[], adjustments: string[]): TrainingDay[] {
+  const cleanAdjustments = adjustments.map((item) => item.trim()).filter(Boolean);
+  if (cleanAdjustments.length === 0) return days;
+  return days.map((day) => ({ ...day, planAdjustments: cleanAdjustments }));
+}
+
+function buildPlanAdjustmentNotes({
+  isEnglish,
+  readinessLevel,
+  readinessVolumeMultiplier,
+  isTapering,
+  weeksOut,
+  requestedEquipment,
+  fallbackReason,
+}: {
+  isEnglish: boolean;
+  readinessLevel: string;
+  readinessVolumeMultiplier: number;
+  isTapering: boolean;
+  weeksOut: number;
+  requestedEquipment: Partial<EquipmentAvailability>;
+  fallbackReason?: string;
+}): string[] {
+  const notes: string[] = [];
+
+  if (fallbackReason) {
+    notes.push(isEnglish
+      ? "FORGE used the safe local coach engine because the LLM/API response was unavailable or failed coach guardrails."
+      : "由于 LLM/API 响应不可用或未通过教练规则校验，FORGE 已切换到安全本地教练引擎。");
+  }
+
+  if (readinessLevel === "red") {
+    notes.push(isEnglish
+      ? `Readiness is red, so this microcycle is capped at about ${Math.round(readinessVolumeMultiplier * 100)}% volume and avoids maximal intensity.`
+      : `readiness 为红色，本微周期容量约限制在 ${Math.round(readinessVolumeMultiplier * 100)}%，并避免极限强度。`);
+  } else if (readinessLevel === "yellow") {
+    notes.push(isEnglish
+      ? `Readiness is yellow, so total work is trimmed to about ${Math.round(readinessVolumeMultiplier * 100)}% while keeping HYROX specificity.`
+      : `readiness 为黄色，本周总量约调整到 ${Math.round(readinessVolumeMultiplier * 100)}%，但保留 HYROX 专项刺激。`);
+  }
+
+  if (isTapering) {
+    notes.push(isEnglish
+      ? `${weeksOut} weeks out from race day: the plan shifts toward freshness, lower volume, and sharper race-pace touches.`
+      : `距离比赛约 ${weeksOut} 周：计划转向保鲜、降量，并保留短而准的比赛配速刺激。`);
+  }
+
+  const unavailable = Object.entries(requestedEquipment)
+    .filter((entry): entry is [keyof EquipmentAvailability, boolean] => entry[1] === false)
+    .map(([key]) => EQUIPMENT_LABELS[key]);
+  if (unavailable.length > 0) {
+    notes.push(isEnglish
+      ? `Today's equipment limits were applied: ${unavailable.join(", ")} marked unavailable, so blocked station work is substituted locally.`
+      : `已应用今日器械限制：${unavailable.join("、")} 标记为不可用，受影响站点会使用本地替代方案。`);
+  }
+
+  return notes.slice(0, 4);
+}
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -230,7 +290,18 @@ Programming Guidelines:
     const cleanJson = jsonMatch ? jsonMatch[1] : responseText;
 
     logToFile("Cleaned JSON: " + cleanJson.substring(0, 500));
-    const parsedRes = assertCoachReadyMicrocycle(JSON.parse(cleanJson.trim()), { equipment: requestedEquipment });
+    const validation = validateCoachReadyMicrocycle(JSON.parse(cleanJson.trim()), { equipment: requestedEquipment });
+    if (validation.issues.length > 0) {
+      throw new Error(`Coach output failed guardrails: ${validation.issues.map((issue) => issue.message).join(" | ")}`);
+    }
+    const parsedRes = attachPlanAdjustments(validation.days, buildPlanAdjustmentNotes({
+      isEnglish,
+      readinessLevel,
+      readinessVolumeMultiplier,
+      isTapering,
+      weeksOut,
+      requestedEquipment,
+    }));
     logToFile("Returning OK JSON map with length " + parsedRes.length);
     return NextResponse.json(parsedRes);
   } catch (error: any) {
@@ -270,10 +341,19 @@ Programming Guidelines:
     const racePace = paceFor("race", "4:45/km");
     const thresholdPace = paceFor("threshold", "4:30/km");
     const intervalRxPace = paceFor("interval", "4:00/km");
+    const fallbackAdjustmentNotes = buildPlanAdjustmentNotes({
+      isEnglish,
+      readinessLevel,
+      readinessVolumeMultiplier,
+      isTapering,
+      weeksOut,
+      requestedEquipment,
+      fallbackReason: error.message,
+    });
 
     const pushFallbackDay = (day: TrainingDay) => {
       const blocks = day.blocks.map((block) => buildLocalSubstitution(block, requestedEquipment, isEnglish ? "en" : "zh") || block);
-      fallbackPlan.push({ ...day, blocks });
+      fallbackPlan.push({ ...day, blocks, planAdjustments: fallbackAdjustmentNotes });
     };
     const coachNotesFor = (kind: "rest" | "run" | "mixed"): string[] => {
       const notes: string[] = [];
