@@ -71,7 +71,12 @@
     "readinessGreen": "Proceed with normal progressive overload while monitoring RPE and notes.",
     "readinessYellow": "Keep the plan specific, but trim volume and avoid stacking hard run or sled sessions.",
     "readinessRed": "Reduce volume, avoid high-impact overload, and prioritize recovery until symptoms settle.",
-    "regenerateTitle": "Regenerate this week's plan from the selected date"
+    "regenerateTitle": "Regenerate this week's plan from the selected date",
+    "coachNotes": "Coach Notes",
+    "painAlert": "Pain Note Detected",
+    "painAlertDesc": "The next plan should stay conservative around the flagged area. If pain persists, consult a qualified professional.",
+    "safetyAlert": "Red-Flag Symptom Detected",
+    "safetyAlertDesc": "Avoid high-intensity work and consult a qualified professional before pushing again."
   },
   "workout": {
     "title": "Workout Log",

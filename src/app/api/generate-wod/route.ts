@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     const readiness = summarizeReadiness(completedLogs, startDate);
     readinessLevel = readiness.level;
     readinessVolumeMultiplier = readiness.volumeMultiplier;
-    const readinessContext = `\n[Readiness State]\nLevel: ${readiness.level.toUpperCase()}\nCompleted sessions in last 14 days: ${readiness.completedSessions}\nAverage RPE: ${readiness.avgRpe?.toFixed(1) || "N/A"}\nMax RPE: ${readiness.maxRpe?.toFixed(1) || "N/A"}\nPain/injury note count: ${readiness.painSignals.length}\nRecommended volume multiplier: ${Math.round(readiness.volumeMultiplier * 100)}%\nCoach instruction: ${readiness.recommendation}\nYou MUST adapt the weekly plan to this readiness state. For YELLOW trim total volume, avoid stacking hard days, and keep intensity controlled. For RED remove maximal sled work, reduce impact, and add recovery-biased sessions.`;
+    const readinessContext = `\n[Readiness State]\nLevel: ${readiness.level.toUpperCase()}\nCompleted sessions in last 14 days: ${readiness.completedSessions}\nAverage RPE: ${readiness.avgRpe?.toFixed(1) || "N/A"}\nMax RPE: ${readiness.maxRpe?.toFixed(1) || "N/A"}\nPain/injury note count: ${readiness.painSignals.length}\nRed-flag note count: ${readiness.redFlagSignals.length}\nRecommended volume multiplier: ${Math.round(readiness.volumeMultiplier * 100)}%\nCoach instruction: ${readiness.recommendation}\nYou MUST adapt the weekly plan to this readiness state. For YELLOW trim total volume, avoid stacking hard days, and keep intensity controlled. For RED remove maximal sled work, reduce impact, and add recovery-biased sessions. If red-flag notes exist, the plan must explicitly avoid high intensity and advise consulting a qualified professional before pushing again.`;
     const runPrescriptionContext = runPrescriptions.length > 0
       ? `\n[Run Prescriptions - MUST USE FOR RUNNING BLOCKS]\n${runPrescriptions.map((item) => `- ${item.label.toUpperCase()}: ${formatPace(item.paceMsPerKm)}/km — ${item.purpose}`).join("\n")}\nEvery running block MUST name one prescription label (easy, race, threshold, interval) and use its exact pace or a clearly justified nearby pace.`
       : "";
@@ -162,6 +162,7 @@ JSON format requirement:
     "phase": ${isEnglish ? '"e.g., Base Phase, Peak Phase, Taper Phase"' : '"e.g., 基础期, 强化期, 巅峰期"'},
     "title": ${isEnglish ? '"e.g., Engine Builder, Heavy Sled Day, Full Rest"' : '"e.g., 引擎发动机, 重型雪橇日, 完全休息"'},
     "description": ${isEnglish ? '"Short description of the day intent in English"' : '"Short description of the day\'s intent in Chinese"'},
+    "coachNotes": ${isEnglish ? '["Why this session was programmed", "How readiness, PRs, equipment, or race timing affected today"]' : '["今天为什么这样安排", "readiness、PR、器械或比赛时间如何影响今天训练"]'},
     "blocks": [
       {
         "type": "WarmUp" | "MainSet" | "CoolDown" | "Strength",
@@ -178,6 +179,7 @@ Programming Guidelines:
 - Plan exactly ONE full rest day per week.
 - HYROX is a running-dominant sport. You MUST program at least 2 dedicated running sessions (e.g., Long Slow Distance, Interval Sprints, Lactate Threshold Runs).
 - Use the provided Run Prescriptions for all running blocks. Write the prescription label and exact target pace in the running block details.
+- Each day MUST include 2-4 concise user-facing coachNotes explaining why that day was programmed. Mention readiness, race timing, PR-derived paces, focus choice, or equipment constraints when relevant.
 - CALIBRATE RUNNING PACES AND HEART RATE based on the user's Target Time and HR profile. IF the user provided Resting/Max HR, you MUST suggest specific BPM ranges (e.g. "Zone 2: 135-145 BPM") along with specific paces (e.g. 5:00/km) for all running blocks!
 - For the single rest day, 'blocks' can be empty or contain a simple 'Relax' block.
 - For non-rest days, include a WarmUp, at least one MainSet, and a CoolDown.
@@ -273,6 +275,44 @@ Programming Guidelines:
       const blocks = day.blocks.map((block) => buildLocalSubstitution(block, requestedEquipment, isEnglish ? "en" : "zh") || block);
       fallbackPlan.push({ ...day, blocks });
     };
+    const coachNotesFor = (kind: "rest" | "run" | "mixed"): string[] => {
+      const notes: string[] = [];
+      if (readinessLevel === "red") {
+        notes.push(isEnglish
+          ? "Readiness is red, so today's plan reduces load and removes maximal intensity."
+          : "readiness 为红色，今天主动降低负荷并移除极限强度。");
+      } else if (readinessLevel === "yellow") {
+        notes.push(isEnglish
+          ? "Readiness is yellow, so volume is trimmed while keeping HYROX specificity."
+          : "readiness 为黄色，今天保留 HYROX 专项刺激但削减总量。");
+      }
+
+      if (isTapering) {
+        notes.push(isEnglish
+          ? `${weeksOut} weeks out from race day, so the goal is freshness rather than fatigue.`
+          : `距离比赛约 ${weeksOut} 周，目标是保留状态而不是制造疲劳。`);
+      }
+
+      if (kind === "run") {
+        notes.push(isEnglish
+          ? `Running uses PR-aware prescriptions: easy ${easyPace}, race ${racePace}, threshold ${thresholdPace}, interval ${intervalRxPace}.`
+          : `跑步使用基于 PR 的配速：轻松跑 ${easyPace}、比赛配速 ${racePace}、阈值 ${thresholdPace}、间歇 ${intervalRxPace}。`);
+      }
+
+      if (kind === "mixed") {
+        notes.push(isEnglish
+          ? "The station work targets HYROX-specific transitions between compromised running and functional load."
+          : "站点训练针对 HYROX 的跑步疲劳后转换与功能负重能力。");
+      }
+
+      if (kind === "rest") {
+        notes.push(isEnglish
+          ? "A full rest day is kept in the microcycle so adaptation can catch up with the workload."
+          : "微周期保留完整休息日，让身体吸收前面的训练刺激。");
+      }
+
+      return notes.slice(0, 4);
+    };
 
     for (let i = 0; i < 7; i++) {
         const d = new Date(baseDate);
@@ -306,6 +346,7 @@ Programming Guidelines:
                       : isCautionFatigue ? "近期 readiness 提示谨慎推进，今天控制训练量。"
                       : isTapering ? `距离比赛仅剩 ${weeksOut} 周，多安排休息以储备体能。`
                       : "日常休息日，拉伸与放松肌肉。"),
+                 coachNotes: coachNotesFor("rest"),
                  blocks: [{ type: "Relax", name: isEnglish ? "Light Stretch & Walk" : "轻度拉伸与散步", format: "Relax", details: isEnglish ? ["20min Easy Walk", "Foam Roll & Static Stretch"] : ["20分钟慢走", "泡沫轴放松拉伸"], targetDuration: 30 }]
              } as TrainingDay);
         } else if (i === 1 || i === 4) {
@@ -355,6 +396,7 @@ Programming Guidelines:
                  phase: basePhase,
                  title: runTitle,
                  description: runDesc,
+                 coachNotes: coachNotesFor("run"),
                  blocks: [
                      {
                        type: "WarmUp",
@@ -450,6 +492,7 @@ Programming Guidelines:
                  phase: basePhase,
                  title: workoutTitle,
                  description: workoutDesc,
+                 coachNotes: coachNotesFor("mixed"),
                  blocks: [
                      {
                        type: "WarmUp",

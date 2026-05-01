@@ -24,6 +24,7 @@ export type TrainingDay = {
   phase: string;
   title: string;
   description: string;
+  coachNotes?: string[];
   blocks: TrainingBlock[];
 };
 
@@ -88,6 +89,7 @@ export function normalizeTrainingDay(value: unknown): TrainingDay | null {
     phase: asString(value.phase, "Training Phase"),
     title: asString(value.title, "Training Day"),
     description: asString(value.description, ""),
+    coachNotes: asDetails(value.coachNotes),
     blocks,
   };
 }

@@ -14,6 +14,7 @@ import {
 } from "../src/lib/runPrescription.ts";
 import { validateCoachReadyMicrocycle } from "../src/lib/coachGuardrails.ts";
 import { summarizeReadiness } from "../src/lib/readiness.ts";
+import { normalizeTrainingDay } from "../src/lib/trainingPlan.ts";
 import type { TrainingBlock, TrainingDay } from "../src/lib/trainingPlan.ts";
 
 const workoutBlock = (details: string[]): TrainingBlock => ({
@@ -131,4 +132,37 @@ test("readiness summary detects high fatigue and pain notes", () => {
   assert.equal(readiness.completedSessions, 2);
   assert.equal(readiness.volumeMultiplier, 0.65);
   assert.equal(readiness.painSignals.length, 2);
+  assert.equal(readiness.redFlagSignals.length, 0);
+});
+
+test("readiness summary treats chest symptoms as red flags", () => {
+  const readiness = summarizeReadiness(
+    {
+      "2026-04-30": {
+        date: "2026-04-30",
+        rpe: 6,
+        blockLogs: { 0: { notes: "Chest tightness during intervals" } },
+      },
+    },
+    "2026-05-01"
+  );
+
+  assert.equal(readiness.level, "red");
+  assert.equal(readiness.volumeMultiplier, 0.5);
+  assert.equal(readiness.redFlagSignals.length, 1);
+});
+
+test("training day normalization preserves coach notes", () => {
+  const day = normalizeTrainingDay({
+    date: "2026-05-01",
+    isRestDay: false,
+    phase: "Build",
+    title: "Engine Day",
+    description: "Race-specific work",
+    coachNotes: ["Run paces use the 1km PR.", "Volume was trimmed for readiness."],
+    blocks: [workoutBlock(["RACE prescription: 1km run @ 04:19/km"])],
+  });
+
+  assert.ok(day);
+  assert.deepEqual(day.coachNotes, ["Run paces use the 1km PR.", "Volume was trimmed for readiness."]);
 });

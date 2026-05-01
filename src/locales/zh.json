@@ -71,7 +71,12 @@
     "readinessGreen": "可以按正常节奏渐进加量，同时继续观察 RPE 与训练备注。",
     "readinessYellow": "保持专项训练，但削减总量，避免连续堆叠高强度跑步或雪橇日。",
     "readinessRed": "降低训练容量，避免高冲击超负荷，优先恢复到不适感稳定后再推进。",
-    "regenerateTitle": "从所选日期开始重新生成本周计划"
+    "regenerateTitle": "从所选日期开始重新生成本周计划",
+    "coachNotes": "教练解释",
+    "painAlert": "检测到疼痛备注",
+    "painAlertDesc": "下一份计划会围绕相关部位保守处理。如果疼痛持续，请咨询专业人士。",
+    "safetyAlert": "检测到红旗症状",
+    "safetyAlertDesc": "请避免高强度训练，并在继续冲强度前咨询专业人士。"
   },
   "workout": {
     "title": "训练打卡",

@@ -38,6 +38,9 @@ Make FORGE a production-ready pocket HYROX coach: database-first training state,
 - `/api/generate-wod` now injects readiness state into the coach prompt and fallback plan logic.
 - Tightened language consistency for English/Chinese modes across dashboard readiness, equipment settings, workout logging, local substitutions, and fallback generated plans.
 - Updated i18n initialization so saved language is applied before the app renders, avoiding page-to-page language flicker.
+- Added `coachNotes` to training days so the dashboard can explain why a session, pace, recovery day, or volume reduction was programmed.
+- Added red-flag readiness detection for symptoms like chest tightness, dizziness, numbness, sharp pain, and swelling.
+- Added GitHub Actions CI for `npm run test:core`, `npm run lint`, and `npm run build`.
 
 ## Verification
 
@@ -68,12 +71,13 @@ Make FORGE a production-ready pocket HYROX coach: database-first training state,
 - `npm run test:core` passes with coverage for readiness red-flag detection.
 - Browser smoke checked `/dashboard` readiness card rendering after the readiness loop was added.
 - Browser smoke checked English mode on `/dashboard`, `/equipment`, and `/workout/2026-05-01`; interactive UI controls no longer leak Chinese copy in English mode.
+- Browser smoke checked `/dashboard` coach notes rendering.
 
 ## Next Vertical Slices
 
 1. **Readiness and feedback loop**
    - Store generated readiness snapshots with each plan.
-   - Add user-facing repair messages when readiness forces a plan reduction.
+   - Persist plan-level repair messages when readiness or guardrails force a plan reduction.
 
 2. **More Coach Core guardrails**
    - Add taper constraints within 14 days of race day.

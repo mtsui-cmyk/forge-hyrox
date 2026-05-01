@@ -26,10 +26,12 @@ This update moves FORGE from a UI prototype toward a usable training product:
 - **Equipment-aware substitutions**: workouts can detect missing equipment and create local substitutions that preserve the intended metabolic and muscular stimulus.
 - **Run prescription engine**: target race time and 1km PR now produce easy, race, threshold, and interval paces used by generated running blocks.
 - **Readiness feedback loop**: recent training logs, RPE, and pain/injury notes are summarized into green/yellow/red readiness states with volume guidance.
+- **Coach explanation cards**: each generated day can show concise coach notes explaining why the session, pace, volume, or recovery choice was programmed.
 - **Database-first training state**: microcycles, edited WODs, substitutions, completed logs, PRs, profile, and equipment settings sync through the database.
 - **LLM API hardening**: LLM-backed routes now require auth, return JSON 401 responses, avoid raw request-body logging, and validate/fallback generated plans.
+- **Safety-aware readiness**: red-flag notes such as chest tightness, dizziness, numbness, or sharp pain trigger more conservative guidance.
 - **Bilingual consistency**: English mode now stays English across the dashboard, workout log, equipment settings, local substitutions, and fallback-generated training plans.
-- **Core tests**: added `npm run test:core` for Coach Core behavior tests.
+- **CI checks**: GitHub Actions now runs Coach Core tests, type checking, and production build on push and pull request.
 
 Validation used for this update:
 
@@ -38,8 +40,6 @@ npm run test:core
 npm run lint
 npm run build
 ```
-
-Current commit: `80561f9 Build HYROX coaching core`
 
 ---
 
@@ -59,6 +59,7 @@ FORGE is a fan-made prototype. It is not an official HYROX application and does 
 - **Equipment substitutions**: replace sled, SkiErg, wall ball, sandbag, rower, bike, cable, dumbbell, or kettlebell work when today's gym lacks equipment.
 - **Pacing engine**: calculate race, easy, threshold, and interval running paces from target finish time and running PRs.
 - **Readiness state**: summarize recent logs into green/yellow/red guidance to reduce or progress training volume.
+- **Coach notes**: explain why each session was programmed and how readiness, race timing, PRs, or equipment shaped the plan.
 - **Workout logging**: record block results, notes, total time, and RPE.
 - **PR tracking**: store benchmark results for HYROX stations and use them in planning.
 - **Bilingual product experience**: switch between English and Chinese UI and generated training content.
@@ -108,6 +109,7 @@ npm run build
 - `src/lib/runPrescription.ts` derives run paces.
 - `src/lib/readiness.ts` summarizes fatigue/readiness.
 - `tests/coach-core.test.ts` covers core coaching behavior.
+- `.github/workflows/ci.yml` runs the GitHub verification pipeline.
 
 ---
 
@@ -138,10 +140,12 @@ FORGE 用来帮助 HYROX 训练者生成结构化训练计划，根据当日健�
 - **器械感知替代**：当健身房缺少雪橇、SkiErg、墙球等器械时，生成保留代谢和肌肉刺激的本地替代动作。
 - **跑步配速引擎**：根据目标完赛时间和 1km PR 生成 easy、race、threshold、interval 配速。
 - **Readiness 状态**：根据近期训练日志、RPE 和疼痛/受伤备注生成 green/yellow/red 状态，并给出训练容量建议。
+- **教练解释卡片**：每个训练日可以显示为什么这样安排、为什么降量、为什么采用某个配速或恢复策略。
 - **数据库优先状态同步**：训练计划、编辑后的 WOD、替代动作、训练日志、PR、档案和器械设置都通过数据库同步。
 - **LLM API 加固**：LLM 路由需要登录鉴权，未登录返回 JSON 401，避免记录原始请求体，并校验/兜底生成计划。
+- **安全感知 readiness**：胸闷、头晕、麻木、剧痛等红旗备注会触发更保守的训练建议。
 - **中英文一致性**：英文模式下 Dashboard、Workout、Equipment、本地替代和 fallback 训练内容保持英文；中文模式保持中文。
-- **核心行为测试**：新增 `npm run test:core`。
+- **CI 自动验证**：GitHub Actions 会在 push 和 pull request 时自动运行核心测试、类型检查和生产构建。
 
 本次验证：
 
@@ -157,6 +161,7 @@ npm run build
 - **器械替代**：没有雪橇、SkiErg、墙球、沙袋、划船机等器械时，生成可执行替代方案。
 - **配速引擎**：根据目标完赛时间和跑步 PR 计算比赛配速、轻松跑、阈值跑、间歇跑配速。
 - **训练状态反馈**：根据近期日志输出 green/yellow/red 训练状态，用于调整训练容量。
+- **教练解释**：解释每天为什么这么练，以及 readiness、比赛时间、PR 或器械如何影响计划。
 - **训练打卡**：记录每个训练块的结果、备注、总时间和 RPE。
 - **PR 追踪**：记录 HYROX 站点个人最好成绩，并用于后续计划生成。
 - **中英文体验**：界面和生成训练内容支持英文/中文切换。

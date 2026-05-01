@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Timer, Activity, Dumbbell, Check, Flame, Rocket } from "lucide-react";
+import { Activity, AlertTriangle, Brain, Dumbbell, Check, Flame, Rocket } from "lucide-react";
 import { useTranslation, LanguageToggle } from "@/components/I18nProvider";
 import { useSession, signOut } from "next-auth/react";
 import { useTrainingStore } from "@/store/useTrainingStore";
@@ -234,6 +234,19 @@ export default function Dashboard() {
               <p className="font-sans text-[11px] text-outline leading-relaxed mt-2">{readinessRecommendation}</p>
             </div>
           </div>
+          {(readiness.redFlagSignals.length > 0 || readiness.painSignals.length > 0) && (
+            <div className="mt-4 rounded-lg border border-[#FF5A5F]/40 bg-[#FF5A5F]/10 p-3 flex gap-3">
+              <AlertTriangle className="w-4 h-4 text-[#FF5A5F] shrink-0 mt-0.5" />
+              <div>
+                <p className="font-display text-[10px] font-black uppercase tracking-widest text-[#FF5A5F]">
+                  {readiness.redFlagSignals.length > 0 ? t("dashboard.safetyAlert") : t("dashboard.painAlert")}
+                </p>
+                <p className="text-[11px] text-on-surface/70 leading-relaxed mt-1">
+                  {readiness.redFlagSignals.length > 0 ? t("dashboard.safetyAlertDesc") : t("dashboard.painAlertDesc")}
+                </p>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Calendar and Weekly Nav */}
@@ -283,6 +296,24 @@ export default function Dashboard() {
                    <p className="font-sans text-xs text-outline leading-relaxed max-w-[200px]">
                      {selectedWod.description || t("dashboard.restDayDesc")}
                    </p>
+                   {selectedWod.coachNotes && selectedWod.coachNotes.length > 0 && (
+                     <div className="mt-5 text-left w-full bg-surface/50 border border-outline/20 rounded-xl p-4">
+                       <div className="flex items-center gap-2 mb-3">
+                         <Brain className="w-4 h-4 text-primary" />
+                         <p className="font-display text-[10px] font-black uppercase tracking-widest text-primary">
+                           {t("dashboard.coachNotes")}
+                         </p>
+                       </div>
+                       <ul className="space-y-2">
+                         {selectedWod.coachNotes.map((note: string, noteIdx: number) => (
+                           <li key={noteIdx} className="flex gap-2 text-xs leading-relaxed text-on-surface/75">
+                             <span className="text-primary font-black">/</span>
+                             <span>{note}</span>
+                           </li>
+                         ))}
+                       </ul>
+                     </div>
+                   )}
                  </div>
               ) : (
                 <div className={`bg-surface-container-highest p-6 rounded-xl ${isCompleted ? 'border-l-4 border-[#00E475]' : 'border-l-4 border-primary'} shadow-xl`}>
@@ -302,6 +333,25 @@ export default function Dashboard() {
                       <Rocket className="text-primary w-8 h-8 opacity-80" strokeWidth={2} />
                     )}
                   </div>
+
+                  {selectedWod.coachNotes && selectedWod.coachNotes.length > 0 && (
+                    <div className="bg-surface/50 border border-outline/20 rounded-xl p-4 mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Brain className="w-4 h-4 text-primary" />
+                        <p className="font-display text-[10px] font-black uppercase tracking-widest text-primary">
+                          {t("dashboard.coachNotes")}
+                        </p>
+                      </div>
+                      <ul className="space-y-2">
+                        {selectedWod.coachNotes.map((note: string, noteIdx: number) => (
+                          <li key={noteIdx} className="flex gap-2 text-xs leading-relaxed text-on-surface/75">
+                            <span className="text-primary font-black">/</span>
+                            <span>{note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div className="space-y-4 mb-6">
                     {selectedWod.blocks.map((b: any, i: number) => (
