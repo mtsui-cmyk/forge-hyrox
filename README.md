@@ -1,113 +1,185 @@
 <div align="center">
 
-# 🔥 FORGE v.1.0
+# FORGE v1.0
 
-**Your Pocket AI HYROX Coach | 你的随身 AI 混拓教练** （欢迎大家contribute开发这个web app）
+**Your pocket AI HYROX coach**
 
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+FORGE helps HYROX athletes generate structured training plans, adapt sessions to real gym equipment, track PRs, and adjust training load from fatigue feedback.
+
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript)](https://www.typescriptlang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[中文](#-中文介绍) · [English](#-english)
+[Latest Update](#latest-update) · [Features](#features) · [Quick Start](#quick-start) · [Chinese 中文](#中文说明)
 
 </div>
 
 ---
 
-## 💡 开发初衷 / The Story Behind FORGE
+## Latest Update
 
-*Hi! 我是 Mervyn，一个重度 HYROX 爱好者和 AI 极客。*
+**May 1, 2026 — HYROX coaching core build**
 
-作为一个经常出差的人，我常在酒店或普通健身房遇到没有专用器械（如雪橇车或滑雪机）的窘境。我一直想要一个随身的“口袋教练”——它不仅能自动生成系统的 HYROX 训练计划，还能根据我手头的器械智能平替动作，记录 PR，并根据我上周的疲劳度调整下周的训练量。
+This update moves FORGE from a UI prototype toward a usable training product:
 
-这就是我开发 **FORGE** 的原因。作为一个早期 Prototype（原型），它的初衷是帮助大家在缺乏条件时也能科学备赛。当然，去线下场馆跟着专业教练上课永远是最佳选择，但当你出差或独自训练时，FORGE 会是你最好的辅助工具。
+- **Coach Core guardrails**: generated microcycles are validated for seven-day structure, rest-day count, running exposure, empty training days, and unavailable equipment.
+- **Equipment-aware substitutions**: workouts can detect missing equipment and create local substitutions that preserve the intended metabolic and muscular stimulus.
+- **Run prescription engine**: target race time and 1km PR now produce easy, race, threshold, and interval paces used by generated running blocks.
+- **Readiness feedback loop**: recent training logs, RPE, and pain/injury notes are summarized into green/yellow/red readiness states with volume guidance.
+- **Database-first training state**: microcycles, edited WODs, substitutions, completed logs, PRs, profile, and equipment settings sync through the database.
+- **LLM API hardening**: LLM-backed routes now require auth, return JSON 401 responses, avoid raw request-body logging, and validate/fallback generated plans.
+- **Bilingual consistency**: English mode now stays English across the dashboard, workout log, equipment settings, local substitutions, and fallback-generated training plans.
+- **Core tests**: added `npm run test:core` for Coach Core behavior tests.
 
-*(声明：本项目为个人爱好之作，非 HYROX 官方应用，也未包含任何官方 Logo。)*
+Validation used for this update:
+
+```bash
+npm run test:core
+npm run lint
+npm run build
+```
+
+Current commit: `80561f9 Build HYROX coaching core`
 
 ---
 
-*Hi! I'm Mervyn, a heavy HYROX enthusiast and AI geek.*
+## Story
 
-As someone who loves HYROX and travels frequently, I often found myself in hotel gyms lacking specific equipment (like a sled or a SkiErg). I wanted a personal coach in my pocket—one that could generate a structured HYROX training plan, dynamically swap exercises based on available equipment, track my PRs, and adjust my next week's volume based on my fatigue levels.
+Hi, I'm Mervyn, a HYROX enthusiast and AI builder.
 
-That's why I built **FORGE**. It's a prototype designed to let anyone have a personalized HYROX coach on their phone. Of course, nothing beats going to a real gym and taking classes with professional coaches, but FORGE is here to fill the gaps when you're on the road or training solo.
+I built FORGE because I often train while traveling, where gyms may not have HYROX-specific equipment such as sleds, SkiErgs, or wall balls. I wanted a coach in my pocket that could create a structured HYROX plan, adapt workouts to the equipment available that day, track PRs, and adjust training volume based on fatigue.
 
-*(Note: This is a fan-made project and is **NOT** an official HYROX application. No official HYROX logos or trademarks are used.)*
+FORGE is a fan-made prototype. It is not an official HYROX application and does not use official HYROX logos or trademarks. It is intended as a training assistance tool, not a replacement for qualified coaching.
 
 ---
 
-## 🇨🇳 中文介绍
+## Features
 
-### ✨ 核心亮点
+- **AI microcycle planning**: generate seven-day HYROX training plans from athlete profile, race date, target time, equipment, PRs, and recent fatigue.
+- **Equipment substitutions**: replace sled, SkiErg, wall ball, sandbag, rower, bike, cable, dumbbell, or kettlebell work when today's gym lacks equipment.
+- **Pacing engine**: calculate race, easy, threshold, and interval running paces from target finish time and running PRs.
+- **Readiness state**: summarize recent logs into green/yellow/red guidance to reduce or progress training volume.
+- **Workout logging**: record block results, notes, total time, and RPE.
+- **PR tracking**: store benchmark results for HYROX stations and use them in planning.
+- **Bilingual product experience**: switch between English and Chinese UI and generated training content.
+- **Production-oriented safeguards**: authenticated APIs, normalized training data, validated LLM output, and deterministic local fallbacks.
 
-- **随身口袋教练** — 无论出差在酒店还是普通健身房，用手机或电脑就能获取专属训练计划。
-- **AI 智能器械平替** — 健身房没有雪橇车？没有滑雪机？AI 会根据你现有的器械，即时生成等效的代谢和肌肉刺激替换动作。
-- **动态微周期规划** — 根据你的体能、比赛日期和每周的 RPE 疲劳反馈，自动生成和调整 7 天专属训练计划。
-- **精准配速引擎 & PR 台账** — 输入目标完赛时间，精确计算每个站点的分段用时。记录 8 大 HYROX 站点个人最佳成绩。
-- **赛前智能减量** — 比赛前 2 周自动进入 Tapering 减量模式，削减 40% 容量以储备体能。
-- **中英文双语** — 界面与 AI 生成内容全面支持中文 ⇔ English 实时切换。
+---
 
-### 📱 界面预览 / Screenshots
+## Screenshots
 
-| 首页 (Dashboard) | 个人档案与身体数据 (Profile) |
+| Dashboard | Profile |
 | :---: | :---: |
-| <img src="./public/screenshot-dashboard.png" width="400" alt="Dashboard" /> | <img src="./public/screenshot-profile.png" width="400" alt="Profile" /> |
-| **配速引擎 (Pacing Engine)** | **八大项 PR 追踪 (PR Tracker)** |
-| <img src="./public/screenshot-pacing.png" width="400" alt="Pacing Engine" /> | <img src="./public/screenshot-pr.png" width="400" alt="PR Tracker" /> |
+| <img src="./public/screenshot-dashboard.png" width="400" alt="FORGE dashboard screenshot" /> | <img src="./public/screenshot-profile.png" width="400" alt="FORGE profile screenshot" /> |
+| **Pacing Engine** | **PR Tracker** |
+| <img src="./public/screenshot-pacing.png" width="400" alt="FORGE pacing engine screenshot" /> | <img src="./public/screenshot-pr.png" width="400" alt="FORGE PR tracker screenshot" /> |
 
+---
 
-### 💬 交流与反馈
-
-我只是一个热爱 HYROX 和折腾 AI 的技术爱好者。这是一个早期的 Prototype（原型），如果你也对 HYROX 或 AI 应用开发感兴趣，或者用了 FORGE 觉得有想吐槽/建议的地方，**非常欢迎加我微信交流！**
-
-<div align="center">
-  <img src="./public/wechat-qr.jpg" alt="Mervyn WeChat QR Code" width="250" />
-</div>
-
-### 🚀 快速上手
+## Quick Start
 
 ```bash
-git clone https://github.com/mervyntsui-cmyk/forge-hyrox.git
+git clone https://github.com/mtsui-cmyk/forge-hyrox.git
 cd forge-hyrox
 npm install
-cp .env.example .env.local  # 填入你的大模型 API Key（如阿里云百炼、Claude、OpenRouter 等）
+cp .env.example .env.local
 npm run dev
+```
+
+Add your LLM API key and database settings in `.env.local`.
+
+Useful commands:
+
+```bash
+npm run test:core
+npm run lint
+npm run build
 ```
 
 ---
 
-## 🇬🇧 English
+## Architecture Notes
 
-### ✨ Key Features
-
-- **Pocket Coach Anywhere** — Whether you're traveling, in a hotel, or at a local gym without specialized equipment, FORGE has your back.
-- **AI Equipment Swap** — No Sled? No SkiErg? The AI will instantly generate a structural replacement block to match the intended metabolic and muscular stimulus.
-- **Dynamic Microcycles** — Generates a 7-day HYROX training plan via LLM, adapting to your fitness level, race date, and RPE feedback loop.
-- **Smart Pacing & PRs** — Input your target finish time to get per-station split targets. Log PRs for all 8 HYROX stations with a radar performance chart.
-- **Race Tapering** — Automatically reduces volume by 40% in the final 2 weeks before race day.
-- **Bilingual UI** — Full Chinese ↔ English toggle for both the interface and AI-generated workouts.
-
-### 💬 Let's Connect
-
-If you're also a HYROX enthusiast, an AI developer, or simply someone who finds this prototype useful (or buggy!), I'd love to chat. Feel free to connect via WeChat (scan the QR code in the Chinese section above) or open an issue on GitHub.
-
-### 🚀 Quick Start
-
-```bash
-git clone https://github.com/mervyntsui-cmyk/forge-hyrox.git
-cd forge-hyrox
-npm install
-cp .env.example .env.local  # Insert your LLM API Key (Anthropic-compatible endpoint)
-npm run dev
-```
+- `CONTEXT.md` captures the product direction and domain language.
+- `docs/STATUS.md` tracks implementation status and next vertical slices.
+- `docs/adr/` records architectural decisions for LLM coaching, substitutions, and database-first state.
+- `src/lib/coachGuardrails.ts` validates generated training plans.
+- `src/lib/equipmentSubstitutions.ts` handles local equipment substitutions.
+- `src/lib/runPrescription.ts` derives run paces.
+- `src/lib/readiness.ts` summarizes fatigue/readiness.
+- `tests/coach-core.test.ts` covers core coaching behavior.
 
 ---
 
-## ⚠️ 免责声明 / Disclaimer
+## Disclaimer
 
-FORGE 是训练辅助工具，非医疗设备。开始高强度训练前，建议大家去线下场馆上课并咨询专业教练。**本项目为个人爱好之作，非 HYROX 官方应用，也未使用官方 Logo。**
+FORGE is a training assistance tool and not medical advice. Consult a qualified coach or medical professional before starting intensive training, especially if you have pain, injury, or health concerns.
 
-FORGE is a training assistance tool. Always consult a qualified coach before starting an intensive training program. Going to actual classes at an affiliated gym is highly recommended! **This is a fan-made personal project and is NOT an official HYROX app, nor does it use any official logos.**
+This is a fan-made personal project and is not affiliated with, endorsed by, or sponsored by HYROX.
+
+---
+
+<details id="中文说明">
+<summary><strong>中文说明</strong></summary>
+
+## FORGE v1.0
+
+**你的随身 AI HYROX 训练教练**
+
+FORGE 用来帮助 HYROX 训练者生成结构化训练计划，根据当日健身房器械情况调整训练内容，记录 PR，并根据疲劳反馈调整训练量。
+
+### 本次更新
+
+**2026 年 5 月 1 日 — HYROX Coaching Core**
+
+这次更新让 FORGE 从 UI 原型更接近一个可用的训练产品：
+
+- **Coach Core 训练守卫**：校验 7 天微周期、休息日数量、跑步训练暴露、空训练日和不可用器械。
+- **器械感知替代**：当健身房缺少雪橇、SkiErg、墙球等器械时，生成保留代谢和肌肉刺激的本地替代动作。
+- **跑步配速引擎**：根据目标完赛时间和 1km PR 生成 easy、race、threshold、interval 配速。
+- **Readiness 状态**：根据近期训练日志、RPE 和疼痛/受伤备注生成 green/yellow/red 状态，并给出训练容量建议。
+- **数据库优先状态同步**：训练计划、编辑后的 WOD、替代动作、训练日志、PR、档案和器械设置都通过数据库同步。
+- **LLM API 加固**：LLM 路由需要登录鉴权，未登录返回 JSON 401，避免记录原始请求体，并校验/兜底生成计划。
+- **中英文一致性**：英文模式下 Dashboard、Workout、Equipment、本地替代和 fallback 训练内容保持英文；中文模式保持中文。
+- **核心行为测试**：新增 `npm run test:core`。
+
+本次验证：
+
+```bash
+npm run test:core
+npm run lint
+npm run build
+```
+
+### 核心功能
+
+- **AI 微周期规划**：根据运动员档案、比赛日期、目标时间、器械、PR 和疲劳反馈生成 7 天训练计划。
+- **器械替代**：没有雪橇、SkiErg、墙球、沙袋、划船机等器械时，生成可执行替代方案。
+- **配速引擎**：根据目标完赛时间和跑步 PR 计算比赛配速、轻松跑、阈值跑、间歇跑配速。
+- **训练状态反馈**：根据近期日志输出 green/yellow/red 训练状态，用于调整训练容量。
+- **训练打卡**：记录每个训练块的结果、备注、总时间和 RPE。
+- **PR 追踪**：记录 HYROX 站点个人最好成绩，并用于后续计划生成。
+- **中英文体验**：界面和生成训练内容支持英文/中文切换。
+
+### 快速开始
+
+```bash
+git clone https://github.com/mtsui-cmyk/forge-hyrox.git
+cd forge-hyrox
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+在 `.env.local` 中填入 LLM API key 和数据库配置。
+
+### 声明
+
+FORGE 是训练辅助工具，不是医疗建议。进行高强度训练前，尤其是在有疼痛、伤病或健康风险时，请咨询专业教练或医生。
+
+本项目为个人爱好作品，非 HYROX 官方应用，也不代表 HYROX 官方。
+
+</details>
 
 ---
 
