@@ -1,10 +1,12 @@
 # FORGE Development Status
 
-Last updated: 2026-05-01
+Last updated: 2026-05-10
 
 ## Current Goal
 
 Make FORGE a production-ready pocket HYROX coach: database-first training state, deterministic coach guardrails, LLM-assisted plan generation, and practical equipment substitutions for real gyms.
+
+For a full handoff archive, see `docs/ARCHIVE_2026-05-10.md`.
 
 ## Completed
 
