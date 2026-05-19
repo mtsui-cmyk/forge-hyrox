@@ -241,6 +241,64 @@
     "exportError": "海报生成失败",
     "poweredBy": "POWERED BY HYROX FORGE ENGINE"
   },
+  "train": {
+    "title": "训练",
+    "trainingBlock": "训练周期",
+    "library": "训练库",
+    "maxDuration": "最长时长：{minutes} 分钟",
+    "schedule": "安排",
+    "manualBuilder": "手动创建",
+    "saveToLibrary": "保存到训练库"
+  },
+  "coach": {
+    "title": "教练",
+    "heading": "AI 长期教练",
+    "headingDesc": "生成 4-8 周训练结构、当前周训练或单次训练。登录用户会走受保护 Coach API；Demo 模式保持本地生成。",
+    "generateLongTerm": "生成 8 周计划",
+    "generateLongTermDesc": "创建 Base / Build / Peak / Taper 结构，包含 deload 和训练量目标。",
+    "generateWeek": "生成当前周",
+    "generateWeekDesc": "根据 readiness 和长期阶段生成 7 天 HYROX 训练周。",
+    "generateSingle": "生成单次训练",
+    "generateSingleDesc": "创建 45 分钟训练，并保存到训练库。",
+    "demoLongTerm": "Demo 模式使用本地确定性教练，没有调用 API 或写入数据库。",
+    "apiFallbackSaved": "确定性教练 fallback 已保存，并记录生成元数据。",
+    "longTermSaved": "长期计划已生成并保存。",
+    "apiFailedLocalFallback": "Coach API 失败，已在浏览器中应用本地确定性 fallback。",
+    "demoWeek": "Demo 模式已在本地生成当前周，没有写入数据库。",
+    "weekSavedWithReadiness": "当前周已保存，并记录 readiness snapshot：{level}。",
+    "weekSaved": "当前周已生成并保存。",
+    "demoSingle": "Demo 模式已在本地生成单次训练，没有调用 API 或写入数据库。",
+    "singleFallbackSaved": "单次训练已使用确定性教练 fallback 保存。",
+    "singleSaved": "单次训练已生成并保存。",
+    "weekLabel": "第 {week} 周",
+    "volume": "训练量 {volume}%",
+    "state": {
+      "idle": "空闲",
+      "generating": "生成中",
+      "fallback": "本地兜底",
+      "failed": "失败"
+    }
+  },
+  "race": {
+    "title": "比赛",
+    "heading": "比赛准备计划",
+    "manualWallBalls": "手动墙球秒数（可选）",
+    "savePlan": "保存比赛计划",
+    "projected": "预计完赛",
+    "roxzone": "ROXZONE",
+    "runSplits": "跑步分段",
+    "stationSplits": "站点分段",
+    "savedCount": "本浏览器已保存 {count} 个比赛计划。"
+  },
+  "metrics": {
+    "title": "数据",
+    "completed": "已完成",
+    "completion": "完成率",
+    "streak": "连续",
+    "painNotes": "疼痛备注",
+    "weaknessRadar": "站点弱项雷达",
+    "weeklyLoad": "周训练负荷"
+  },
   "nav": {
     "dashboard": "首页",
     "train": "训练",
@@ -256,6 +314,7 @@
     "error": "出错了",
     "retry": "重试",
     "cancel": "取消",
+    "all": "全部",
     "save": "保存",
     "delete": "删除",
     "min": "分钟",

@@ -8,13 +8,22 @@ import { useTranslation } from "@/components/I18nProvider";
 import { useTrainingStore } from "@/store/useTrainingStore";
 import { isDemoMode } from "@/lib/demoMode";
 import { scheduledWorkoutFromDay } from "@/lib/scheduledWorkout";
-import { BUILT_IN_WORKOUT_TEMPLATES, filterWorkoutTemplates, templateToTrainingDay, type WorkoutDifficulty, type WorkoutFocus } from "@/lib/workoutLibrary";
+import {
+  BUILT_IN_WORKOUT_TEMPLATES,
+  filterWorkoutTemplates,
+  localizeWorkoutDifficulty,
+  localizeWorkoutFocus,
+  localizeWorkoutTitle,
+  templateToTrainingDay,
+  type WorkoutDifficulty,
+  type WorkoutFocus,
+} from "@/lib/workoutLibrary";
 
 const focuses: Array<"All" | WorkoutFocus> = ["All", "Engine", "Strength", "Compromised Running", "Race Simulation", "Recovery", "No Equipment", "Hotel Gym"];
 const difficulties: Array<"All" | WorkoutDifficulty> = ["All", "Beginner", "Intermediate", "Advanced", "Elite"];
 
 export default function TrainPage() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { microcycle, setMicrocycle, scheduledWorkouts, upsertScheduledWorkout, workoutTemplates, setWorkoutTemplates, upsertWorkoutTemplate } = useTrainingStore();
   const [focus, setFocus] = useState<(typeof focuses)[number]>("All");
   const [difficulty, setDifficulty] = useState<(typeof difficulties)[number]>("All");
@@ -35,7 +44,7 @@ export default function TrainPage() {
   const scheduleTemplate = (id: string) => {
     const template = templates.find((item) => item.id === id);
     if (!template) return;
-    const day = templateToTrainingDay(template, scheduleDate);
+    const day = templateToTrainingDay(template, scheduleDate, lang === "zh" ? "zh" : "en");
     setMicrocycle([day as any]);
     upsertScheduledWorkout(scheduledWorkoutFromDay(day, "library", `library-${scheduleDate}`));
   };
@@ -59,7 +68,7 @@ export default function TrainPage() {
       }],
     };
     upsertWorkoutTemplate(template);
-    upsertScheduledWorkout(scheduledWorkoutFromDay(templateToTrainingDay(template, scheduleDate), "manual", `manual-${scheduleDate}`));
+    upsertScheduledWorkout(scheduledWorkoutFromDay(templateToTrainingDay(template, scheduleDate, lang === "zh" ? "zh" : "en"), "manual", `manual-${scheduleDate}`));
     if (isDemoMode() && workoutTemplates.length === 0) setWorkoutTemplates([template, ...BUILT_IN_WORKOUT_TEMPLATES]);
   };
 
@@ -68,7 +77,7 @@ export default function TrainPage() {
       <header className="fixed top-0 z-50 w-full bg-[#131313] border-b border-outline/10">
         <div className="h-16 px-6 flex items-center gap-2 max-w-2xl mx-auto">
           <Flame className="w-5 h-5 text-primary fill-primary" />
-          <h1 className="font-display font-black text-xl italic uppercase text-primary">FORGE <span className="text-on-surface">/ TRAIN</span></h1>
+          <h1 className="font-display font-black text-xl italic uppercase text-primary">FORGE <span className="text-on-surface">/ {t("train.title")}</span></h1>
         </div>
       </header>
 
@@ -76,7 +85,7 @@ export default function TrainPage() {
         <section className="bg-surface-container border border-outline/20 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-4">
             <CalendarDays className="w-5 h-5 text-primary" />
-            <h2 className="font-display font-black uppercase text-lg">Training Block</h2>
+            <h2 className="font-display font-black uppercase text-lg">{t("train.trainingBlock")}</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {week.slice(0, 8).map((day) => (
@@ -92,18 +101,18 @@ export default function TrainPage() {
         <section className="bg-surface-container border border-outline/20 rounded-xl p-4 space-y-4">
           <div className="flex items-center gap-2">
             <Filter className="w-5 h-5 text-primary" />
-            <h2 className="font-display font-black uppercase text-lg">Workout Library</h2>
+            <h2 className="font-display font-black uppercase text-lg">{t("train.library")}</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <select value={focus} onChange={(e) => setFocus(e.target.value as any)} className="bg-surface rounded-lg p-3 text-xs">
-              {focuses.map((item) => <option key={item}>{item}</option>)}
+              {focuses.map((item) => <option key={item} value={item}>{item === "All" ? t("common.all") : localizeWorkoutFocus(item, lang === "zh" ? "zh" : "en")}</option>)}
             </select>
             <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as any)} className="bg-surface rounded-lg p-3 text-xs">
-              {difficulties.map((item) => <option key={item}>{item}</option>)}
+              {difficulties.map((item) => <option key={item} value={item}>{item === "All" ? t("common.all") : localizeWorkoutDifficulty(item, lang === "zh" ? "zh" : "en")}</option>)}
             </select>
           </div>
           <label className="block text-[10px] uppercase tracking-widest text-outline font-bold">
-            Max duration: {maxDuration} min
+            {t("train.maxDuration", { minutes: maxDuration })}
             <input type="range" min={20} max={90} value={maxDuration} onChange={(e) => setMaxDuration(Number(e.target.value))} className="w-full mt-2" />
           </label>
           <input type="date" value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} className="w-full bg-surface rounded-lg p-3 text-xs" />
@@ -112,10 +121,10 @@ export default function TrainPage() {
               <div key={template.id} className="bg-surface/60 rounded-lg border border-outline/20 p-3">
                 <div className="flex justify-between gap-3">
                   <div>
-                    <p className="font-display font-black uppercase text-sm">{template.title}</p>
-                    <p className="text-[10px] text-outline mt-1">{template.focus} • {template.duration}m • {template.difficulty}</p>
+                    <p className="font-display font-black uppercase text-sm">{localizeWorkoutTitle(template, lang === "zh" ? "zh" : "en")}</p>
+                    <p className="text-[10px] text-outline mt-1">{localizeWorkoutFocus(template.focus, lang === "zh" ? "zh" : "en")} • {template.duration}m • {localizeWorkoutDifficulty(template.difficulty, lang === "zh" ? "zh" : "en")}</p>
                   </div>
-                  <button onClick={() => scheduleTemplate(template.id)} className="bg-primary text-on-primary rounded-lg px-3 py-2 text-[10px] font-black uppercase">Schedule</button>
+                  <button onClick={() => scheduleTemplate(template.id)} className="bg-primary text-on-primary rounded-lg px-3 py-2 text-[10px] font-black uppercase">{t("train.schedule")}</button>
                 </div>
               </div>
             ))}
@@ -125,12 +134,12 @@ export default function TrainPage() {
         <section className="bg-surface-container border border-outline/20 rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-primary" />
-            <h2 className="font-display font-black uppercase text-lg">Manual Builder</h2>
+            <h2 className="font-display font-black uppercase text-lg">{t("train.manualBuilder")}</h2>
           </div>
           <input value={manualTitle} onChange={(e) => setManualTitle(e.target.value)} className="w-full bg-surface rounded-lg p-3 text-sm" />
           <textarea value={manualDetails} onChange={(e) => setManualDetails(e.target.value)} className="w-full bg-surface rounded-lg p-3 text-sm min-h-32" />
           <button onClick={saveManualTemplate} className="w-full bg-surface-container-high rounded-xl py-4 text-primary font-display font-black uppercase text-xs flex items-center justify-center gap-2">
-            <Star className="w-4 h-4" /> Save to Library
+            <Star className="w-4 h-4" /> {t("train.saveToLibrary")}
           </button>
         </section>
       </main>

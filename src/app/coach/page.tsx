@@ -12,8 +12,32 @@ import { scheduledWorkoutFromDay } from "@/lib/scheduledWorkout";
 import { BUILT_IN_WORKOUT_TEMPLATES, templateToTrainingDay } from "@/lib/workoutLibrary";
 import type { TrainingDay } from "@/lib/trainingPlan";
 
+const phaseLabel = (phase: string, lang: string) => {
+  if (lang !== "zh") return phase;
+  return {
+    Base: "基础期",
+    Build: "建设期",
+    Peak: "峰值期",
+    Taper: "减量期",
+    Race: "比赛周",
+  }[phase] || phase;
+};
+
+const focusLabel = (focus: string, lang: string) => {
+  if (lang !== "zh") return focus;
+  return focus
+    .replace("Aerobic base and movement quality", "有氧基础与动作质量")
+    .replace("Compromised running and station strength", "跑站转换与站点力量")
+    .replace("Race simulation and specificity", "比赛模拟与专项化")
+    .replace("Freshness, rhythm, and race pace", "恢复新鲜度、节奏与比赛配速");
+};
+
+const planTitle = (title: string, lang: string) => lang === "zh"
+  ? title.replace("8-Week HYROX Intermediate Build", "8 周 HYROX 进阶备赛周期")
+  : title;
+
 export default function CoachPage() {
-  const { lang } = useTranslation();
+  const { lang, t } = useTranslation();
   const {
     completedLogs,
     longTermPlan,
@@ -42,7 +66,7 @@ export default function CoachPage() {
     if (isDemoMode()) {
       setLongTermPlan(fallback);
       setGenerationState("fallback");
-      setGenerationMessage("Demo mode used deterministic local coach. No API or database write was made.");
+      setGenerationMessage(t("coach.demoLongTerm"));
       return;
     }
 
@@ -56,13 +80,11 @@ export default function CoachPage() {
       const data = await response.json();
       setLongTermPlan(data.plan || fallback);
       setGenerationState(data.generation?.fallbackUsed ? "fallback" : "idle");
-      setGenerationMessage(data.generation?.fallbackUsed
-        ? "Deterministic coach fallback was saved with generation metadata."
-        : "Long-term plan generated and saved.");
+      setGenerationMessage(data.generation?.fallbackUsed ? t("coach.apiFallbackSaved") : t("coach.longTermSaved"));
     } catch {
       setLongTermPlan(fallback);
       setGenerationState("failed");
-      setGenerationMessage("Coach API failed. Local deterministic fallback was applied in the browser.");
+      setGenerationMessage(t("coach.apiFailedLocalFallback"));
     }
   };
 
@@ -82,7 +104,7 @@ export default function CoachPage() {
     if (isDemoMode()) {
       applyWeek(fallbackWeek, "demo-coach");
       setGenerationState("fallback");
-      setGenerationMessage("Demo mode generated the current week locally without database writes.");
+      setGenerationMessage(t("coach.demoWeek"));
       return;
     }
 
@@ -106,12 +128,12 @@ export default function CoachPage() {
       applyWeek(week, "coach-week");
       setGenerationState(data.generation?.fallbackUsed ? "fallback" : "idle");
       setGenerationMessage(data.readinessSnapshot
-        ? `Current week saved with readiness snapshot: ${data.readinessSnapshot.level}.`
-        : "Current week generated and saved.");
+        ? t("coach.weekSavedWithReadiness", { level: data.readinessSnapshot.level })
+        : t("coach.weekSaved"));
     } catch {
       applyWeek(fallbackWeek, "local-coach");
       setGenerationState("failed");
-      setGenerationMessage("Coach API failed. Local deterministic fallback was applied in the browser.");
+      setGenerationMessage(t("coach.apiFailedLocalFallback"));
     }
   };
 
@@ -136,7 +158,7 @@ export default function CoachPage() {
     if (isDemoMode()) {
       applyWorkout(fallbackWorkout);
       setGenerationState("fallback");
-      setGenerationMessage("Demo mode created a local single workout without API or database writes.");
+      setGenerationMessage(t("coach.demoSingle"));
       return;
     }
 
@@ -150,13 +172,11 @@ export default function CoachPage() {
       const data = await response.json();
       applyWorkout((data.workout || fallbackWorkout) as TrainingDay);
       setGenerationState(data.generation?.fallbackUsed ? "fallback" : "idle");
-      setGenerationMessage(data.generation?.fallbackUsed
-        ? "Single workout saved using deterministic coach fallback."
-        : "Single workout generated and saved.");
+      setGenerationMessage(data.generation?.fallbackUsed ? t("coach.singleFallbackSaved") : t("coach.singleSaved"));
     } catch {
       applyWorkout(fallbackWorkout);
       setGenerationState("failed");
-      setGenerationMessage("Coach API failed. Local deterministic fallback was applied in the browser.");
+      setGenerationMessage(t("coach.apiFailedLocalFallback"));
     }
   };
 
@@ -165,27 +185,27 @@ export default function CoachPage() {
       <header className="fixed top-0 z-50 w-full bg-[#131313] border-b border-outline/10">
         <div className="h-16 px-6 flex items-center gap-2 max-w-2xl mx-auto">
           <Flame className="w-5 h-5 text-primary fill-primary" />
-          <h1 className="font-display font-black text-xl italic uppercase text-primary">FORGE <span className="text-on-surface">/ COACH</span></h1>
+          <h1 className="font-display font-black text-xl italic uppercase text-primary">FORGE <span className="text-on-surface">/ {t("coach.title")}</span></h1>
         </div>
       </header>
       <main className="pt-24 px-6 max-w-2xl mx-auto space-y-5">
         <section className="bg-surface-container border border-outline/20 rounded-xl p-5">
           <Brain className="w-8 h-8 text-primary mb-3" />
-          <h2 className="font-display font-black text-3xl uppercase italic tracking-tight">AI Long-Term Coach</h2>
-          <p className="text-xs text-outline mt-2 leading-relaxed">Generate 4-8 week planning structure, current week sessions, or a single workout. Production requests use the guarded Coach API; demo mode stays local.</p>
+          <h2 className="font-display font-black text-3xl uppercase italic tracking-tight">{t("coach.heading")}</h2>
+          <p className="text-xs text-outline mt-2 leading-relaxed">{t("coach.headingDesc")}</p>
         </section>
 
         <button onClick={generateLongTermPlan} className="w-full bg-primary text-on-primary rounded-xl p-5 text-left">
-          <p className="font-display font-black uppercase flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Generate 8-Week Plan</p>
-          <p className="text-xs mt-2 opacity-70">Creates Base / Build / Peak / Taper structure with deload and volume targets.</p>
+          <p className="font-display font-black uppercase flex items-center gap-2"><RefreshCw className="w-4 h-4" /> {t("coach.generateLongTerm")}</p>
+          <p className="text-xs mt-2 opacity-70">{t("coach.generateLongTermDesc")}</p>
         </button>
         <button onClick={generateWeek} className="w-full bg-surface-container border border-outline/20 rounded-xl p-5 text-left">
-          <p className="font-display font-black uppercase flex items-center gap-2 text-primary"><Zap className="w-4 h-4" /> Generate Current Week</p>
-          <p className="text-xs mt-2 text-outline">Applies readiness and long-term phase to a 7-day HYROX week.</p>
+          <p className="font-display font-black uppercase flex items-center gap-2 text-primary"><Zap className="w-4 h-4" /> {t("coach.generateWeek")}</p>
+          <p className="text-xs mt-2 text-outline">{t("coach.generateWeekDesc")}</p>
         </button>
         <button onClick={generateSingleWorkout} className="w-full bg-surface-container border border-outline/20 rounded-xl p-5 text-left">
-          <p className="font-display font-black uppercase text-primary">Generate Single Workout</p>
-          <p className="text-xs mt-2 text-outline">Creates a 45-minute session and saves it to the training library.</p>
+          <p className="font-display font-black uppercase text-primary">{t("coach.generateSingle")}</p>
+          <p className="text-xs mt-2 text-outline">{t("coach.generateSingleDesc")}</p>
         </button>
 
         {generationState !== "idle" && (
@@ -194,18 +214,18 @@ export default function CoachPage() {
             generationState === "failed" ? "bg-red-950/30 border-red-500/30 text-red-100" :
             "bg-primary/10 border-primary/30 text-primary"
           }`}>
-            <p className="font-display font-black uppercase">{generationState}</p>
+            <p className="font-display font-black uppercase">{t(`coach.state.${generationState}`)}</p>
             <p className="mt-1">{generationMessage}</p>
           </section>
         )}
 
         {longTermPlan && (
           <section className="bg-surface-container border border-outline/20 rounded-xl p-4 space-y-3">
-            <h3 className="font-display font-black uppercase text-lg">{longTermPlan.title}</h3>
+            <h3 className="font-display font-black uppercase text-lg">{planTitle(longTermPlan.title, lang)}</h3>
             {longTermPlan.weeks.map((week) => (
               <div key={week.weekIndex} className="bg-surface/60 rounded-lg p-3 border border-outline/10">
-                <p className="font-display font-black uppercase text-sm">Week {week.weekIndex + 1}: {week.phase}</p>
-                <p className="text-[10px] text-outline mt-1">{week.focus} • Volume {week.volumeTarget}%</p>
+                <p className="font-display font-black uppercase text-sm">{t("coach.weekLabel", { week: week.weekIndex + 1 })}: {phaseLabel(week.phase, lang)}</p>
+                <p className="text-[10px] text-outline mt-1">{focusLabel(week.focus, lang)} • {t("coach.volume", { volume: week.volumeTarget })}</p>
               </div>
             ))}
           </section>

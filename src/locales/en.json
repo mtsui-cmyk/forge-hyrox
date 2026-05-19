@@ -241,6 +241,64 @@
     "exportError": "Failed to generate poster",
     "poweredBy": "POWERED BY HYROX FORGE ENGINE"
   },
+  "train": {
+    "title": "Train",
+    "trainingBlock": "Training Block",
+    "library": "Workout Library",
+    "maxDuration": "Max duration: {minutes} min",
+    "schedule": "Schedule",
+    "manualBuilder": "Manual Builder",
+    "saveToLibrary": "Save to Library"
+  },
+  "coach": {
+    "title": "Coach",
+    "heading": "AI Long-Term Coach",
+    "headingDesc": "Generate 4-8 week planning structure, current week sessions, or a single workout. Authenticated users use the guarded Coach API; demo mode stays local.",
+    "generateLongTerm": "Generate 8-Week Plan",
+    "generateLongTermDesc": "Creates Base / Build / Peak / Taper structure with deload and volume targets.",
+    "generateWeek": "Generate Current Week",
+    "generateWeekDesc": "Applies readiness and long-term phase to a 7-day HYROX week.",
+    "generateSingle": "Generate Single Workout",
+    "generateSingleDesc": "Creates a 45-minute session and saves it to the training library.",
+    "demoLongTerm": "Demo mode used deterministic local coach. No API or database write was made.",
+    "apiFallbackSaved": "Deterministic coach fallback was saved with generation metadata.",
+    "longTermSaved": "Long-term plan generated and saved.",
+    "apiFailedLocalFallback": "Coach API failed. Local deterministic fallback was applied in the browser.",
+    "demoWeek": "Demo mode generated the current week locally without database writes.",
+    "weekSavedWithReadiness": "Current week saved with readiness snapshot: {level}.",
+    "weekSaved": "Current week generated and saved.",
+    "demoSingle": "Demo mode created a local single workout without API or database writes.",
+    "singleFallbackSaved": "Single workout saved using deterministic coach fallback.",
+    "singleSaved": "Single workout generated and saved.",
+    "weekLabel": "Week {week}",
+    "volume": "Volume {volume}%",
+    "state": {
+      "idle": "idle",
+      "generating": "generating",
+      "fallback": "fallback",
+      "failed": "failed"
+    }
+  },
+  "race": {
+    "title": "Race",
+    "heading": "Race Prep Planner",
+    "manualWallBalls": "Manual Wall Balls seconds (optional)",
+    "savePlan": "Save Race Plan",
+    "projected": "Projected",
+    "roxzone": "ROXZONE",
+    "runSplits": "Run Splits",
+    "stationSplits": "Station Splits",
+    "savedCount": "{count} saved race plan(s) in this browser."
+  },
+  "metrics": {
+    "title": "Metrics",
+    "completed": "Completed",
+    "completion": "Completion",
+    "streak": "Streak",
+    "painNotes": "Pain Notes",
+    "weaknessRadar": "Station Weakness Radar",
+    "weeklyLoad": "Weekly Load"
+  },
   "nav": {
     "dashboard": "Home",
     "train": "Train",
@@ -256,6 +314,7 @@
     "error": "Something went wrong",
     "retry": "Retry",
     "cancel": "Cancel",
+    "all": "All",
     "save": "Save",
     "delete": "Delete",
     "min": "min",
