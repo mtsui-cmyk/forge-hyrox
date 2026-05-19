@@ -16,6 +16,7 @@ import { validateCoachReadyMicrocycle } from "../src/lib/coachGuardrails.ts";
 import { summarizeReadiness } from "../src/lib/readiness.ts";
 import { buildLongTermPlan, validateLongTermPlan } from "../src/lib/longTermPlan.ts";
 import { buildRacePlan } from "../src/lib/racePlan.ts";
+import { scheduledWorkoutFromDay, scheduledWorkoutsFromMicrocycle } from "../src/lib/scheduledWorkout.ts";
 import { normalizeTrainingDay } from "../src/lib/trainingPlan.ts";
 import { BUILT_IN_WORKOUT_TEMPLATES, filterWorkoutTemplates } from "../src/lib/workoutLibrary.ts";
 import type { TrainingBlock, TrainingDay } from "../src/lib/trainingPlan.ts";
@@ -216,4 +217,19 @@ test("workout library filters by duration focus difficulty and equipment", () =>
   assert.ok(filtered.every((item) => item.focus === "Hotel Gym"));
   assert.ok(filtered.every((item) => item.duration <= 40));
   assert.ok(filtered.every((item) => !item.equipmentRequired.includes("sled")));
+});
+
+test("scheduled workouts preserve date source completion and workout payload", () => {
+  const trainingDay = validMicrocycle()[0];
+  const scheduled = scheduledWorkoutFromDay(trainingDay, "library", "library-2026-05-01");
+
+  assert.equal(scheduled.id, "library-2026-05-01");
+  assert.equal(scheduled.date, trainingDay.date);
+  assert.equal(scheduled.source, "library");
+  assert.equal(scheduled.isCompleted, false);
+  assert.equal(scheduled.workout.title, trainingDay.title);
+
+  const fromMicrocycle = scheduledWorkoutsFromMicrocycle({ [trainingDay.date]: trainingDay });
+  assert.equal(fromMicrocycle.length, 1);
+  assert.equal(fromMicrocycle[0].source, "legacy");
 });

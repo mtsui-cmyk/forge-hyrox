@@ -16,6 +16,7 @@ model User {
   dailyLogs     DailyLog[]
   stationPRs    StationPR[]
   trainingPlans TrainingPlan[]
+  scheduledWorkouts ScheduledWorkout[]
   workoutTemplates WorkoutTemplate[]
   racePlans     RacePlan[]
   readinessSnapshots ReadinessSnapshot[]
@@ -82,6 +83,7 @@ model TrainingWeek {
   id                String   @id @default(cuid())
   planId            String
   weekIndex         Int
+  startDate         String
   phase             String
   focus             String
   volumeTarget      Int
@@ -106,6 +108,7 @@ model ScheduledWorkout {
   workout          Json
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   week            TrainingWeek? @relation(fields: [weekId], references: [id], onDelete: SetNull)
 
   @@index([userId, date])

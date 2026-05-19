@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { auth } from '@/auth';
 import { normalizeTrainingPlan } from '@/lib/trainingPlan';
+import { scheduledWorkoutsFromMicrocycle } from '@/lib/scheduledWorkout';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { profileData, microcycle, completedLogs, longTermPlan, workoutTemplates, racePlans, readinessSnapshot, coachGeneration } = body;
+    const { profileData, microcycle, completedLogs, longTermPlan, scheduledWorkouts, workoutTemplates, racePlans, readinessSnapshot, coachGeneration } = body;
 
     if (profileData) {
       await prisma.user.update({
@@ -28,6 +29,30 @@ export async function POST(req: Request) {
           data: JSON.stringify(normalizedMicrocycle)
         }
       });
+
+      for (const scheduledWorkout of scheduledWorkoutsFromMicrocycle(
+        normalizedMicrocycle,
+      )) {
+        await prisma.scheduledWorkout.upsert({
+          where: { id: scheduledWorkout.id },
+          update: {
+            date: scheduledWorkout.date,
+            source: scheduledWorkout.source,
+            isCompleted: !!completedLogs?.[scheduledWorkout.date],
+            isSubstituted: scheduledWorkout.isSubstituted,
+            workout: scheduledWorkout.workout,
+          },
+          create: {
+            id: scheduledWorkout.id,
+            userId: session.user.id,
+            date: scheduledWorkout.date,
+            source: scheduledWorkout.source,
+            isCompleted: !!completedLogs?.[scheduledWorkout.date],
+            isSubstituted: scheduledWorkout.isSubstituted,
+            workout: scheduledWorkout.workout,
+          }
+        });
+      }
     }
 
     if (completedLogs) {
@@ -80,7 +105,7 @@ export async function POST(req: Request) {
     }
 
     if (longTermPlan) {
-      await prisma.trainingPlan.upsert({
+      const persistedPlan = await prisma.trainingPlan.upsert({
         where: { id: longTermPlan.id || `active-${session.user.id}` },
         update: {
           title: longTermPlan.title,
@@ -105,6 +130,68 @@ export async function POST(req: Request) {
           currentWeekIndex: longTermPlan.currentWeekIndex || 0,
         }
       });
+
+      if (Array.isArray(longTermPlan.weeks)) {
+        const incomingWeekIndexes = longTermPlan.weeks.map((week: any) => week.weekIndex);
+        await prisma.trainingWeek.deleteMany({
+          where: {
+            planId: persistedPlan.id,
+            weekIndex: { notIn: incomingWeekIndexes },
+          }
+        });
+        for (const week of longTermPlan.weeks) {
+          await prisma.trainingWeek.upsert({
+            where: {
+              planId_weekIndex: {
+                planId: persistedPlan.id,
+                weekIndex: week.weekIndex,
+              }
+            },
+            update: {
+              phase: week.phase,
+              startDate: week.startDate,
+              focus: week.focus,
+              volumeTarget: week.volumeTarget,
+              readinessSnapshot: week.readinessSnapshot || undefined,
+              planAdjustments: week.planAdjustments || [],
+            },
+            create: {
+              planId: persistedPlan.id,
+              weekIndex: week.weekIndex,
+              startDate: week.startDate,
+              phase: week.phase,
+              focus: week.focus,
+              volumeTarget: week.volumeTarget,
+              readinessSnapshot: week.readinessSnapshot || undefined,
+              planAdjustments: week.planAdjustments || [],
+            }
+          });
+        }
+      }
+    }
+
+    if (Array.isArray(scheduledWorkouts)) {
+      for (const scheduledWorkout of scheduledWorkouts) {
+        await prisma.scheduledWorkout.upsert({
+          where: { id: scheduledWorkout.id },
+          update: {
+            date: scheduledWorkout.date,
+            source: scheduledWorkout.source,
+            isCompleted: !!scheduledWorkout.isCompleted,
+            isSubstituted: !!scheduledWorkout.isSubstituted,
+            workout: scheduledWorkout.workout,
+          },
+          create: {
+            id: scheduledWorkout.id,
+            userId: session.user.id,
+            date: scheduledWorkout.date,
+            source: scheduledWorkout.source,
+            isCompleted: !!scheduledWorkout.isCompleted,
+            isSubstituted: !!scheduledWorkout.isSubstituted,
+            workout: scheduledWorkout.workout,
+          }
+        });
+      }
     }
 
     if (Array.isArray(workoutTemplates)) {
@@ -204,6 +291,7 @@ export async function GET(req: Request) {
         dailyLogs: true,
         stationPRs: true,
         trainingPlans: { where: { status: 'active' }, orderBy: { createdAt: 'desc' }, take: 1, include: { weeks: true } },
+        scheduledWorkouts: { orderBy: { date: 'asc' }, take: 60 },
         workoutTemplates: true,
         racePlans: { orderBy: { createdAt: 'desc' }, take: 5 },
         readinessSnapshots: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -235,6 +323,7 @@ export async function GET(req: Request) {
       completedLogs: formattedLogs,
       prs: prsObj,
       longTermPlan: user.trainingPlans[0] || null,
+      scheduledWorkouts: user.scheduledWorkouts,
       workoutTemplates: user.workoutTemplates,
       racePlans: user.racePlans,
       readinessSnapshots: user.readinessSnapshots,

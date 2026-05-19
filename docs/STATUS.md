@@ -57,6 +57,10 @@ For a full handoff archive, see `docs/ARCHIVE_2026-05-19.md`.
 - Seeded demo mode with long-term plan, workout templates, race plan, and metrics data.
 - Added `/api/coach` and expanded `/api/sync` to include long-term plans, templates, race plans, readiness snapshots, and coach generation records.
 - Hardened `/api/generate-wod` with per-user cooldown, request timeout, one transient retry, safe metadata logging, and fallback generation records.
+- Connected `/coach` to `/api/coach` for authenticated generation while keeping demo mode local and write-free.
+- Added first-class scheduled workout state and sync support, so Train Hub scheduling writes both legacy microcycle state and `ScheduledWorkout` records.
+- Added automatic readiness snapshot and scheduled workout persistence for current-week Coach API generation.
+- Added Prisma relations and migrations for scheduled workout user ownership and training-week start dates.
 
 ## Verification
 
@@ -96,6 +100,8 @@ For a full handoff archive, see `docs/ARCHIVE_2026-05-19.md`.
 - `npm run lint` passes after the v1.1-v1.4 expansion.
 - `npm run build` passes with `/train`, `/coach`, `/race`, `/metrics`, and `/api/coach`.
 - `npm run test:api` passes with unauthenticated JSON 401 coverage for `/api/coach`.
+- `npx prisma validate` passes with a PostgreSQL `DATABASE_URL`.
+- `npm run lint` passes after Coach API and scheduled-workout persistence wiring.
 
 ## Next Vertical Slices
 
@@ -107,16 +113,13 @@ For a full handoff archive, see `docs/ARCHIVE_2026-05-19.md`.
 
 2. **Authenticated API integration**
    - Register/login/profile sync.
-   - Create long-term plan.
-   - Generate current week from long-term plan.
-   - Save scheduled workout.
    - Complete workout log.
    - Save PR and RacePlan.
 
 3. **Deeper persistence**
-   - Move UI scheduling from local microcycle state into `ScheduledWorkout`.
-   - Store readiness snapshots automatically whenever a plan is generated.
-   - Connect `/coach` UI directly to `/api/coach` for authenticated production use.
+   - Use `ScheduledWorkout` as the primary source across workout detail, dashboard, and metrics, with microcycle only as legacy compatibility.
+   - Store readiness snapshots for all generation surfaces, including legacy `/api/generate-wod`.
+   - Add persistence-backed retry/cooldown limits instead of only in-memory cooldown.
 
 4. **Visual QA**
    - Re-run browser smoke in an environment where localhost is not blocked by the browser extension.

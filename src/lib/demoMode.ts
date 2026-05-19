@@ -4,6 +4,7 @@ import { createDemoCompletedLogs, createDemoMicrocycle, DEMO_EQUIPMENT, DEMO_PRO
 import { useTrainingStore } from "@/store/useTrainingStore";
 import { buildLongTermPlan } from "./longTermPlan";
 import { buildRacePlan } from "./racePlan";
+import { scheduledWorkoutsFromMicrocycle } from "./scheduledWorkout";
 import { BUILT_IN_WORKOUT_TEMPLATES } from "./workoutLibrary";
 
 const DEMO_FLAG = "forgeDemoMode";
@@ -51,6 +52,7 @@ export function seedDemoWorkspace(lang: "en" | "zh" = "en", startDate = todayDat
     gender: DEMO_PROFILE.gender,
   })]);
   store.setMicrocycle(microcycle as any);
+  store.setScheduledWorkouts(scheduledWorkoutsFromMicrocycle(Object.fromEntries(microcycle.map((workout) => [workout.date, workout])), "ai"));
   store.setPrs(DEMO_PRS);
   for (const [date, log] of Object.entries(completedLogs)) {
     store.logWorkoutResult(date, log as any);

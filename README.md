@@ -24,10 +24,11 @@ This update expands FORGE from a seven-day coach demo into a broader Web MVP+ tr
 
 - **Long-term AI coach foundation**: deterministic 4-8 week plan generation with base/build/peak/taper phases, deload handling, readiness volume changes, and current-week generation.
 - **Train Hub**: new `/train` workspace with the current block, 30+ HYROX workout templates, filters, scheduling, favorites-ready library data, and a manual workout builder.
-- **Coach workspace**: new `/coach` entry point for long-term plans, current-week plans, and single-session generation with local fallback behavior.
+- **Coach workspace**: new `/coach` entry point for long-term plans, current-week plans, and single-session generation, wired to the guarded Coach API for authenticated users.
 - **Race Prep planner**: new `/race` planner for target finish time, station splits, run splits, ROXZONE estimate, manual station adjustments, and saved race plans.
 - **Metrics dashboard**: new `/metrics` surface for PR weaknesses, weekly load, readiness trend, completion rate, streak, and pain-note history.
 - **PostgreSQL-ready data model**: Prisma now targets PostgreSQL and includes long-term plans, training weeks, scheduled workouts, workout templates, race plans, readiness snapshots, and coach generation records.
+- **Scheduled workout persistence**: Train Hub scheduling and Coach week generation now write first-class scheduled workout records while preserving legacy microcycle compatibility.
 - **LLM production hardening**: generation routes now include cooldown, timeout, retry-on-transient-failure, deterministic fallback, and safe coach-generation metadata without raw prompt logging.
 - **Demo continuity**: `/demo` remains public and now seeds long-term plan, library, race plan, metrics, and training data without requiring login, database writes, or LLM calls.
 
@@ -158,10 +159,11 @@ FORGE 用来帮助 HYROX 训练者生成长期训练周期和每周训练，根�
 
 - **长期 AI 教练基础**：支持 4-8 周训练周期、base/build/peak/taper 阶段、deload、readiness 降量和当前周生成。
 - **Train Hub**：新增 `/train`，包含当前训练 block、30+ HYROX 模板、筛选、安排训练和手动 builder。
-- **Coach 工作台**：新增 `/coach`，用于生成长期计划、当前周计划和单次训练。
+- **Coach 工作台**：新增 `/coach`，登录用户会走受保护的 Coach API；demo 模式仍然保持本地生成且不写数据库。
 - **Race Prep**：新增 `/race`，支持目标完赛时间、8 段跑步、8 个站点、ROXZONE、手动调整和保存 race plan。
 - **Metrics**：新增 `/metrics`，展示弱项、周训练负荷、readiness 趋势、完成率、连续训练和疼痛备注。
 - **PostgreSQL 数据模型**：Prisma 已切换 PostgreSQL，并新增长期计划、训练周、日程训练、模板库、race plan、readiness snapshot 和 coach generation 表。
+- **日程训练持久化**：Train Hub 安排训练和 Coach 当前周生成会写入 `ScheduledWorkout`，同时保留旧 microcycle 兼容。
 - **LLM 生产加固**：生成路由加入 cooldown、timeout、一次瞬时失败重试、fallback 和安全元数据记录。
 - **Demo 延续**：`/demo` 仍然无需注册、无需数据库写入、无需 LLM，同时包含长期计划、模板库、race plan 和 metrics 示例。
 

@@ -29,7 +29,7 @@ before(async () => {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        DATABASE_URL: process.env.DATABASE_URL || "file:./api-smoke.db",
+        DATABASE_URL: process.env.DATABASE_URL || "postgresql://forge:forge@localhost:5432/forge?schema=public",
         NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || "api-smoke-secret",
         NEXTAUTH_URL: BASE_URL,
         AUTH_TRUST_HOST: "true",

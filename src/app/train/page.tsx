@@ -7,6 +7,7 @@ import { BottomNavBar } from "@/components/BottomNavBar";
 import { useTranslation } from "@/components/I18nProvider";
 import { useTrainingStore } from "@/store/useTrainingStore";
 import { isDemoMode } from "@/lib/demoMode";
+import { scheduledWorkoutFromDay } from "@/lib/scheduledWorkout";
 import { BUILT_IN_WORKOUT_TEMPLATES, filterWorkoutTemplates, templateToTrainingDay, type WorkoutDifficulty, type WorkoutFocus } from "@/lib/workoutLibrary";
 
 const focuses: Array<"All" | WorkoutFocus> = ["All", "Engine", "Strength", "Compromised Running", "Race Simulation", "Recovery", "No Equipment", "Hotel Gym"];
@@ -14,7 +15,7 @@ const difficulties: Array<"All" | WorkoutDifficulty> = ["All", "Beginner", "Inte
 
 export default function TrainPage() {
   const { t } = useTranslation();
-  const { microcycle, setMicrocycle, workoutTemplates, setWorkoutTemplates, upsertWorkoutTemplate } = useTrainingStore();
+  const { microcycle, setMicrocycle, scheduledWorkouts, upsertScheduledWorkout, workoutTemplates, setWorkoutTemplates, upsertWorkoutTemplate } = useTrainingStore();
   const [focus, setFocus] = useState<(typeof focuses)[number]>("All");
   const [difficulty, setDifficulty] = useState<(typeof difficulties)[number]>("All");
   const [maxDuration, setMaxDuration] = useState(60);
@@ -27,12 +28,16 @@ export default function TrainPage() {
     () => filterWorkoutTemplates(templates, { focus, difficulty, maxDuration }),
     [templates, focus, difficulty, maxDuration]
   );
-  const week = Object.values(microcycle).sort((a, b) => a.date.localeCompare(b.date));
+  const week = scheduledWorkouts.length > 0
+    ? scheduledWorkouts.map((item) => item.workout).sort((a, b) => a.date.localeCompare(b.date))
+    : Object.values(microcycle).sort((a, b) => a.date.localeCompare(b.date));
 
   const scheduleTemplate = (id: string) => {
     const template = templates.find((item) => item.id === id);
     if (!template) return;
-    setMicrocycle([templateToTrainingDay(template, scheduleDate) as any]);
+    const day = templateToTrainingDay(template, scheduleDate);
+    setMicrocycle([day as any]);
+    upsertScheduledWorkout(scheduledWorkoutFromDay(day, "library", `library-${scheduleDate}`));
   };
 
   const saveManualTemplate = () => {
@@ -54,6 +59,7 @@ export default function TrainPage() {
       }],
     };
     upsertWorkoutTemplate(template);
+    upsertScheduledWorkout(scheduledWorkoutFromDay(templateToTrainingDay(template, scheduleDate), "manual", `manual-${scheduleDate}`));
     if (isDemoMode() && workoutTemplates.length === 0) setWorkoutTemplates([template, ...BUILT_IN_WORKOUT_TEMPLATES]);
   };
 

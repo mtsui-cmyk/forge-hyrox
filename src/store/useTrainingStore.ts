@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { LongTermPlan } from "@/lib/longTermPlan";
 import type { RacePlan } from "@/lib/racePlan";
+import type { ScheduledWorkoutRecord } from "@/lib/scheduledWorkout";
 import type { WorkoutTemplate } from "@/lib/workoutLibrary";
 
 export type WodBlock = {
@@ -42,6 +43,7 @@ interface TrainingState {
   completedLogs: Record<string, DailyLog>;
   prs: Record<string, number>; // Station name -> time in ms
   longTermPlan: LongTermPlan | null;
+  scheduledWorkouts: ScheduledWorkoutRecord[];
   workoutTemplates: WorkoutTemplate[];
   racePlans: RacePlan[];
   setMicrocycle: (plan: WOD[]) => void;
@@ -50,6 +52,8 @@ interface TrainingState {
   updatePR: (station: string, timeMs: number) => void;
   setPrs: (prsData: Record<string, number>) => void;
   setLongTermPlan: (plan: LongTermPlan | null) => void;
+  setScheduledWorkouts: (workouts: ScheduledWorkoutRecord[]) => void;
+  upsertScheduledWorkout: (workout: ScheduledWorkoutRecord) => void;
   setWorkoutTemplates: (templates: WorkoutTemplate[]) => void;
   upsertWorkoutTemplate: (template: WorkoutTemplate) => void;
   addRacePlan: (plan: RacePlan) => void;
@@ -64,6 +68,7 @@ export const useTrainingStore = create<TrainingState>()(
       completedLogs: {},
       prs: {},
       longTermPlan: null,
+      scheduledWorkouts: [],
       workoutTemplates: [],
       racePlans: [],
 
@@ -112,6 +117,19 @@ export const useTrainingStore = create<TrainingState>()(
         set({ longTermPlan: plan });
       },
 
+      setScheduledWorkouts: (workouts: ScheduledWorkoutRecord[]) => {
+        set({ scheduledWorkouts: workouts });
+      },
+
+      upsertScheduledWorkout: (workout: ScheduledWorkoutRecord) => {
+        set((state) => ({
+          scheduledWorkouts: [
+            workout,
+            ...state.scheduledWorkouts.filter((item) => item.id !== workout.id && item.date !== workout.date),
+          ].sort((a, b) => a.date.localeCompare(b.date)),
+        }));
+      },
+
       setWorkoutTemplates: (templates: WorkoutTemplate[]) => {
         set({ workoutTemplates: templates });
       },
@@ -133,7 +151,7 @@ export const useTrainingStore = create<TrainingState>()(
         set({ racePlans: plans });
       },
 
-      clearPlan: () => set({ microcycle: {}, completedLogs: {}, prs: {}, longTermPlan: null, workoutTemplates: [], racePlans: [] }),
+      clearPlan: () => set({ microcycle: {}, completedLogs: {}, prs: {}, longTermPlan: null, scheduledWorkouts: [], workoutTemplates: [], racePlans: [] }),
     }),
     {
       name: "hyrox-training-storage", // localStorage key

@@ -1,0 +1,2 @@
+ALTER TABLE "TrainingWeek"
+ADD COLUMN "startDate" TEXT NOT NULL DEFAULT '';
