@@ -9,6 +9,10 @@ export const proxy = auth((req) => {
   const isPublicRoute = pathname === '/' || pathname === '/demo';
   const isDemoRoute =
     pathname === '/dashboard' ||
+    pathname === '/train' ||
+    pathname === '/coach' ||
+    pathname === '/race' ||
+    pathname === '/metrics' ||
     pathname === '/benchmarks' ||
     pathname === '/pacing' ||
     pathname === '/profile' ||

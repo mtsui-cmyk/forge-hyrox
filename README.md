@@ -1,10 +1,10 @@
 <div align="center">
 
-# FORGE v1.0
+# FORGE v1.4
 
-**Your pocket AI HYROX coach**
+**Your pocket AI HYROX coach and race prep planner**
 
-FORGE helps HYROX athletes generate structured training plans, adapt sessions to real gym equipment, track PRs, and adjust training load from fatigue feedback.
+FORGE helps HYROX athletes build long-term training blocks, plan weekly sessions, adapt workouts to real gym equipment, calculate race splits, track PRs, and adjust training load from fatigue feedback.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-blue?logo=typescript)](https://www.typescriptlang.org)
@@ -18,26 +18,23 @@ FORGE helps HYROX athletes generate structured training plans, adapt sessions to
 
 ## Latest Update
 
-**May 1, 2026 — HYROX coaching core build**
+**May 19, 2026 — Training platform expansion**
 
-This update moves FORGE from a UI prototype toward a usable training product:
+This update expands FORGE from a seven-day coach demo into a broader Web MVP+ training product:
 
-- **Coach Core guardrails**: generated microcycles are validated for seven-day structure, rest-day count, running exposure, empty training days, and unavailable equipment.
-- **Equipment-aware substitutions**: workouts can detect missing equipment and create local substitutions that preserve the intended metabolic and muscular stimulus.
-- **Run prescription engine**: target race time and 1km PR now produce easy, race, threshold, and interval paces used by generated running blocks.
-- **Readiness feedback loop**: recent training logs, RPE, and pain/injury notes are summarized into green/yellow/red readiness states with volume guidance.
-- **Coach explanation cards**: each generated day can show concise coach notes explaining why the session, pace, volume, or recovery choice was programmed.
-- **Plan adjustment transparency**: generated plans now persist user-facing reasons when readiness, taper timing, equipment limits, or local fallback logic changes the week.
-- **Public demo mode**: visitors can open `/demo` and try a complete local sample workspace without registration, database setup, or an LLM API key.
-- **Database-first training state**: microcycles, edited WODs, substitutions, completed logs, PRs, profile, and equipment settings sync through the database.
-- **LLM API hardening**: LLM-backed routes now require auth, return JSON 401 responses, avoid raw request-body logging, and validate/fallback generated plans.
-- **Safety-aware readiness**: red-flag notes such as chest tightness, dizziness, numbness, or sharp pain trigger more conservative guidance.
-- **Bilingual consistency**: English mode now stays English across the dashboard, workout log, equipment settings, local substitutions, and fallback-generated training plans.
-- **CI checks**: GitHub Actions now runs Coach Core tests, API smoke tests, type checking, and production build on push and pull request.
+- **Long-term AI coach foundation**: deterministic 4-8 week plan generation with base/build/peak/taper phases, deload handling, readiness volume changes, and current-week generation.
+- **Train Hub**: new `/train` workspace with the current block, 30+ HYROX workout templates, filters, scheduling, favorites-ready library data, and a manual workout builder.
+- **Coach workspace**: new `/coach` entry point for long-term plans, current-week plans, and single-session generation with local fallback behavior.
+- **Race Prep planner**: new `/race` planner for target finish time, station splits, run splits, ROXZONE estimate, manual station adjustments, and saved race plans.
+- **Metrics dashboard**: new `/metrics` surface for PR weaknesses, weekly load, readiness trend, completion rate, streak, and pain-note history.
+- **PostgreSQL-ready data model**: Prisma now targets PostgreSQL and includes long-term plans, training weeks, scheduled workouts, workout templates, race plans, readiness snapshots, and coach generation records.
+- **LLM production hardening**: generation routes now include cooldown, timeout, retry-on-transient-failure, deterministic fallback, and safe coach-generation metadata without raw prompt logging.
+- **Demo continuity**: `/demo` remains public and now seeds long-term plan, library, race plan, metrics, and training data without requiring login, database writes, or LLM calls.
 
 Validation used for this update:
 
 ```bash
+npm run db:generate
 npm run test:core
 npm run lint
 npm run build
@@ -64,7 +61,11 @@ FORGE is a fan-made prototype. It is not an official HYROX application and does 
 
 ## Features
 
-- **AI microcycle planning**: generate seven-day HYROX training plans from athlete profile, race date, target time, equipment, PRs, and recent fatigue.
+- **AI long-term planning**: generate 4-8 week HYROX training blocks with phase, focus, volume target, taper, and deload logic.
+- **AI microcycle planning**: generate seven-day HYROX training plans from athlete profile, race date, target time, equipment, PRs, recent fatigue, and long-term phase.
+- **Train Hub and workout library**: schedule training, browse HYROX templates, filter by duration/focus/equipment, and build manual workouts.
+- **Race Prep planner**: calculate run splits, station splits, ROXZONE, projected finish time, and save editable race plans.
+- **Metrics dashboard**: review PR weaknesses, weekly load, readiness trend, completion rate, streak, and red-flag notes.
 - **Equipment substitutions**: replace sled, SkiErg, wall ball, sandbag, rower, bike, cable, dumbbell, or kettlebell work when today's gym lacks equipment.
 - **Pacing engine**: calculate race, easy, threshold, and interval running paces from target finish time and running PRs.
 - **Readiness state**: summarize recent logs into green/yellow/red guidance to reduce or progress training volume.
@@ -118,13 +119,17 @@ Run `npm run build` before `npm run test:api`, because the API smoke test starts
 - `docs/STATUS.md` tracks implementation status and next vertical slices.
 - `docs/DEPLOYMENT.md` lists production environment variables and deployment checks.
 - `docs/adr/` records architectural decisions for LLM coaching, substitutions, and database-first state.
-- `src/lib/coachGuardrails.ts` validates generated training plans.
+- `src/lib/longTermPlan.ts` builds and validates 4-8 week HYROX training blocks.
+- `src/lib/workoutLibrary.ts` contains the HYROX workout template library and filters.
+- `src/lib/racePlan.ts` calculates race-day run/station splits and editable plans.
+- `src/lib/metrics.ts` summarizes training load, readiness, completion, streak, and weaknesses.
+- `src/lib/coachGuardrails.ts` validates generated seven-day training plans.
 - `src/lib/equipmentSubstitutions.ts` handles local equipment substitutions.
 - `src/lib/runPrescription.ts` derives run paces.
 - `src/lib/readiness.ts` summarizes fatigue/readiness.
 - `tests/coach-core.test.ts` covers core coaching behavior.
 - `.github/workflows/ci.yml` runs the GitHub verification pipeline.
-- `prisma/migrations/` contains the initial database migration.
+- `prisma/migrations/` contains the PostgreSQL database migration.
 
 ---
 
@@ -139,30 +144,26 @@ This is a fan-made personal project and is not affiliated with, endorsed by, or 
 <details id="中文说明">
 <summary><strong>中文说明</strong></summary>
 
-## FORGE v1.0
+## FORGE v1.4
 
-**你的随身 AI HYROX 训练教练**
+**你的随身 AI HYROX 训练教练和比赛准备工具**
 
-FORGE 用来帮助 HYROX 训练者生成结构化训练计划，根据当日健身房器械情况调整训练内容，记录 PR，并根据疲劳反馈调整训练量。
+FORGE 用来帮助 HYROX 训练者生成长期训练周期和每周训练，根据当日健身房器械情况调整训练内容，计算比赛分段配速，记录 PR，并根据疲劳反馈调整训练量。
 
 ### 本次更新
 
-**2026 年 5 月 1 日 — HYROX Coaching Core**
+**2026 年 5 月 19 日 — 训练平台扩展**
 
-这次更新让 FORGE 从 UI 原型更接近一个可用的训练产品：
+这次更新把 FORGE 从 7 天训练 demo 扩展成更完整的 Web MVP+ 训练产品：
 
-- **Coach Core 训练守卫**：校验 7 天微周期、休息日数量、跑步训练暴露、空训练日和不可用器械。
-- **器械感知替代**：当健身房缺少雪橇、SkiErg、墙球等器械时，生成保留代谢和肌肉刺激的本地替代动作。
-- **跑步配速引擎**：根据目标完赛时间和 1km PR 生成 easy、race、threshold、interval 配速。
-- **Readiness 状态**：根据近期训练日志、RPE 和疼痛/受伤备注生成 green/yellow/red 状态，并给出训练容量建议。
-- **教练解释卡片**：每个训练日可以显示为什么这样安排、为什么降量、为什么采用某个配速或恢复策略。
-- **计划调整透明化**：当 readiness、赛前减量、器械限制或本地 fallback 改变本周计划时，会持久化显示原因。
-- **公开 Demo 模式**：访客可以打开 `/demo`，无需注册、数据库或 LLM API key 即可体验完整示例工作区。
-- **数据库优先状态同步**：训练计划、编辑后的 WOD、替代动作、训练日志、PR、档案和器械设置都通过数据库同步。
-- **LLM API 加固**：LLM 路由需要登录鉴权，未登录返回 JSON 401，避免记录原始请求体，并校验/兜底生成计划。
-- **安全感知 readiness**：胸闷、头晕、麻木、剧痛等红旗备注会触发更保守的训练建议。
-- **中英文一致性**：英文模式下 Dashboard、Workout、Equipment、本地替代和 fallback 训练内容保持英文；中文模式保持中文。
-- **CI 自动验证**：GitHub Actions 会在 push 和 pull request 时自动运行核心测试、API smoke 测试、类型检查和生产构建。
+- **长期 AI 教练基础**：支持 4-8 周训练周期、base/build/peak/taper 阶段、deload、readiness 降量和当前周生成。
+- **Train Hub**：新增 `/train`，包含当前训练 block、30+ HYROX 模板、筛选、安排训练和手动 builder。
+- **Coach 工作台**：新增 `/coach`，用于生成长期计划、当前周计划和单次训练。
+- **Race Prep**：新增 `/race`，支持目标完赛时间、8 段跑步、8 个站点、ROXZONE、手动调整和保存 race plan。
+- **Metrics**：新增 `/metrics`，展示弱项、周训练负荷、readiness 趋势、完成率、连续训练和疼痛备注。
+- **PostgreSQL 数据模型**：Prisma 已切换 PostgreSQL，并新增长期计划、训练周、日程训练、模板库、race plan、readiness snapshot 和 coach generation 表。
+- **LLM 生产加固**：生成路由加入 cooldown、timeout、一次瞬时失败重试、fallback 和安全元数据记录。
+- **Demo 延续**：`/demo` 仍然无需注册、无需数据库写入、无需 LLM，同时包含长期计划、模板库、race plan 和 metrics 示例。
 
 本次验证：
 
@@ -175,7 +176,11 @@ npm run test:api
 
 ### 核心功能
 
-- **AI 微周期规划**：根据运动员档案、比赛日期、目标时间、器械、PR 和疲劳反馈生成 7 天训练计划。
+- **AI 长期规划**：生成 4-8 周 HYROX 周期，包含阶段、重点、训练量、taper 和 deload。
+- **AI 微周期规划**：根据长期阶段、运动员档案、比赛日期、目标时间、器械、PR 和疲劳反馈生成 7 天训练计划。
+- **Train Hub 与训练库**：安排训练、浏览 HYROX 模板、按时间/重点/器械筛选，并手动创建训练。
+- **Race Prep**：计算跑步分段、站点分段、ROXZONE、预计完赛时间，并保存可编辑 race plan。
+- **Metrics**：查看 PR 弱项、周训练负荷、readiness 趋势、完成率、连续训练和疼痛备注。
 - **器械替代**：没有雪橇、SkiErg、墙球、沙袋、划船机等器械时，生成可执行替代方案。
 - **配速引擎**：根据目标完赛时间和跑步 PR 计算比赛配速、轻松跑、阈值跑、间歇跑配速。
 - **训练状态反馈**：根据近期日志输出 green/yellow/red 训练状态，用于调整训练容量。

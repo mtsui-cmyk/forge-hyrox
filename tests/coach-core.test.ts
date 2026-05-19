@@ -14,7 +14,10 @@ import {
 } from "../src/lib/runPrescription.ts";
 import { validateCoachReadyMicrocycle } from "../src/lib/coachGuardrails.ts";
 import { summarizeReadiness } from "../src/lib/readiness.ts";
+import { buildLongTermPlan, validateLongTermPlan } from "../src/lib/longTermPlan.ts";
+import { buildRacePlan } from "../src/lib/racePlan.ts";
 import { normalizeTrainingDay } from "../src/lib/trainingPlan.ts";
+import { BUILT_IN_WORKOUT_TEMPLATES, filterWorkoutTemplates } from "../src/lib/workoutLibrary.ts";
 import type { TrainingBlock, TrainingDay } from "../src/lib/trainingPlan.ts";
 
 const workoutBlock = (details: string[]): TrainingBlock => ({
@@ -167,4 +170,50 @@ test("training day normalization preserves coach notes", () => {
   assert.ok(day);
   assert.deepEqual(day.planAdjustments, ["Readiness trimmed this week."]);
   assert.deepEqual(day.coachNotes, ["Run paces use the 1km PR.", "Volume was trimmed for readiness."]);
+});
+
+test("long-term plan creates 4-8 week structure with taper and deload", () => {
+  const plan = buildLongTermPlan({
+    startDate: "2026-05-01",
+    raceDate: "2026-06-20",
+    targetTime: "01:15:00",
+    fitnessLevel: "Intermediate",
+    weeks: 8,
+  });
+
+  assert.equal(plan.weeks.length, 8);
+  assert.deepEqual(validateLongTermPlan(plan), []);
+  assert.ok(plan.weeks.some((week) => week.phase === "Taper"));
+  assert.ok(plan.weeks.some((week) => week.volumeTarget <= 75));
+});
+
+test("race plan splits preserve target total and manual station edits", () => {
+  const targetTimeMs = parseClockTime("01:15:00");
+  const plan = buildRacePlan({
+    targetTime: "01:15:00",
+    division: "Open",
+    gender: "Male",
+    manualStationSplits: { WallBalls: 300_000 },
+  });
+
+  assert.equal(plan.projectedTimeMs, targetTimeMs);
+  assert.equal(plan.runSplits.length, 8);
+  assert.equal(plan.stationSplits.length, 8);
+  assert.equal(plan.stationSplits.find((item) => item.id === "WallBalls")?.targetMs, 300_000);
+  assert.equal(plan.stationSplits.find((item) => item.id === "WallBalls")?.manual, true);
+});
+
+test("workout library filters by duration focus difficulty and equipment", () => {
+  const filtered = filterWorkoutTemplates(BUILT_IN_WORKOUT_TEMPLATES, {
+    focus: "Hotel Gym",
+    difficulty: "Intermediate",
+    maxDuration: 40,
+    availableEquipment: { sled: false, dumbbells: true, treadmill: true },
+  });
+
+  assert.ok(BUILT_IN_WORKOUT_TEMPLATES.length >= 30);
+  assert.ok(filtered.length > 0);
+  assert.ok(filtered.every((item) => item.focus === "Hotel Gym"));
+  assert.ok(filtered.every((item) => item.duration <= 40));
+  assert.ok(filtered.every((item) => !item.equipmentRequired.includes("sled")));
 });

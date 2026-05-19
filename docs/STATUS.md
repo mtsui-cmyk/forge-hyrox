@@ -1,12 +1,12 @@
 # FORGE Development Status
 
-Last updated: 2026-05-10
+Last updated: 2026-05-19
 
 ## Current Goal
 
-Make FORGE a production-ready pocket HYROX coach: database-first training state, deterministic coach guardrails, LLM-assisted plan generation, and practical equipment substitutions for real gyms.
+Make FORGE a Web MVP+ AI HYROX coach: long-term periodized training, weekly planning, equipment-aware workouts, race prep, metrics, and production deployment on Vercel + Neon PostgreSQL.
 
-For a full handoff archive, see `docs/ARCHIVE_2026-05-10.md`.
+For a full handoff archive, see `docs/ARCHIVE_2026-05-19.md`.
 
 ## Completed
 
@@ -47,6 +47,16 @@ For a full handoff archive, see `docs/ARCHIVE_2026-05-10.md`.
 - Added initial Prisma migration and database scripts for generate, local migrate, deploy, and studio.
 - Added API smoke tests that boot the production server, verify unauthenticated API JSON 401 responses, and verify demo-cookie access to protected pages.
 - Added GitHub Actions CI for `npm run test:core`, `npm run test:api`, `npm run lint`, and `npm run build`.
+- Upgraded the v1.1 planning surface with Train Hub, Coach, Race Prep, and Metrics pages.
+- Added PostgreSQL Prisma models for long-term plans, training weeks, scheduled workouts, workout templates, race plans, readiness snapshots, and coach generation records.
+- Added deterministic domain modules for workout library filtering, 4-8 week planning, race split planning, and metrics summaries.
+- Added `/train` for current block planning, HYROX workout library filters, scheduling, and manual workout building.
+- Added `/coach` for long-term plan, current-week plan, and single-workout generation.
+- Added `/race` for editable race split planning and saved race plans.
+- Added `/metrics` for weekly load, readiness trend, completion rate, streak, pain notes, and station weakness.
+- Seeded demo mode with long-term plan, workout templates, race plan, and metrics data.
+- Added `/api/coach` and expanded `/api/sync` to include long-term plans, templates, race plans, readiness snapshots, and coach generation records.
+- Hardened `/api/generate-wod` with per-user cooldown, request timeout, one transient retry, safe metadata logging, and fallback generation records.
 
 ## Verification
 
@@ -81,20 +91,33 @@ For a full handoff archive, see `docs/ARCHIVE_2026-05-10.md`.
 - Browser smoke checked `/dashboard` after plan-adjustment UI wiring; existing saved plans without adjustment metadata correctly hide the card.
 - Browser smoke checked `/demo` redirects into `/dashboard` and renders demo Plan Adjustments, Coach Notes, and Readiness.
 - `npm run test:api` passes after production build.
+- `npm run db:generate` passes after PostgreSQL schema generation.
+- `npm run test:core` passes with coverage for long-term plan validation, race split totals/manual edits, and library filtering.
+- `npm run lint` passes after the v1.1-v1.4 expansion.
+- `npm run build` passes with `/train`, `/coach`, `/race`, `/metrics`, and `/api/coach`.
+- `npm run test:api` passes with unauthenticated JSON 401 coverage for `/api/coach`.
 
 ## Next Vertical Slices
 
-1. **Readiness and feedback loop**
-   - Store generated readiness snapshots with each plan.
-   - Expand plan-adjustment messages with exact guardrail issue codes and repaired-day counts.
+1. **Deployment**
+   - Create Neon PostgreSQL database.
+   - Set Vercel env vars.
+   - Run `npm run db:deploy` against production.
+   - Smoke `/`, `/demo`, `/dashboard`, `/train`, `/race`, and `/api/sync`.
 
-2. **More Coach Core guardrails**
-   - Add taper constraints within 14 days of race day.
-   - Add high-RPE volume reduction checks.
-   - Return user-facing validation messages when generated plans are repaired or rejected.
+2. **Authenticated API integration**
+   - Register/login/profile sync.
+   - Create long-term plan.
+   - Generate current week from long-term plan.
+   - Save scheduled workout.
+   - Complete workout log.
+   - Save PR and RacePlan.
 
-3. **Production readiness**
-   - Expand behavior tests for fatigue/readiness and taper-specific guardrails.
-   - Add authenticated API integration tests for `/api/sync`, `/api/generate-wod`, and `/api/generate-swap`.
-   - Expand safe logging conventions across all LLM/API routes.
-   - Choose the production database target; SQLite remains suitable for prototype/demo deployments, while PostgreSQL is a better fit for public multi-user launch.
+3. **Deeper persistence**
+   - Move UI scheduling from local microcycle state into `ScheduledWorkout`.
+   - Store readiness snapshots automatically whenever a plan is generated.
+   - Connect `/coach` UI directly to `/api/coach` for authenticated production use.
+
+4. **Visual QA**
+   - Re-run browser smoke in an environment where localhost is not blocked by the browser extension.
+   - Refresh README screenshots for `/train`, `/coach`, `/race`, and `/metrics`.

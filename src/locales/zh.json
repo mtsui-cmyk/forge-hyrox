@@ -243,6 +243,10 @@
   },
   "nav": {
     "dashboard": "首页",
+    "train": "训练",
+    "coach": "教练",
+    "race": "比赛",
+    "metrics": "数据",
     "benchmarks": "记录",
     "pacing": "配速",
     "profile": "档案"

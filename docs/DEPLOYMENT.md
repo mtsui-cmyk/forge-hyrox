@@ -3,7 +3,7 @@
 ## Required Environment Variables
 
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/forge?sslmode=require"
 NEXTAUTH_SECRET="replace-with-openssl-rand-base64-32"
 NEXTAUTH_URL="https://your-production-domain.com"
 AUTH_TRUST_HOST=true
@@ -26,7 +26,8 @@ For local development:
 npm run db:migrate
 ```
 
-The default schema uses SQLite for prototype simplicity. Before a public multi-user launch, consider moving `prisma/schema.prisma` to PostgreSQL and creating a follow-up migration.
+The default schema now targets PostgreSQL. Neon PostgreSQL is the recommended managed database for the Vercel deployment path.
+If an older local `.env` still contains `DATABASE_URL="file:./dev.db"`, replace it with a PostgreSQL connection string before running Prisma commands.
 
 ## Verification
 

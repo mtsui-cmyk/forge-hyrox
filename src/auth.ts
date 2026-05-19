@@ -39,6 +39,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const isAuthRoute = pathname === "/login" || pathname === "/register";
       const isDemoRoute =
         pathname === "/dashboard" ||
+        pathname === "/train" ||
+        pathname === "/coach" ||
+        pathname === "/race" ||
+        pathname === "/metrics" ||
         pathname === "/benchmarks" ||
         pathname === "/pacing" ||
         pathname === "/profile" ||

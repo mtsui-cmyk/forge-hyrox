@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { profileData, microcycle, completedLogs } = body;
+    const { profileData, microcycle, completedLogs, longTermPlan, workoutTemplates, racePlans, readinessSnapshot, coachGeneration } = body;
 
     if (profileData) {
       await prisma.user.update({
@@ -79,6 +79,112 @@ export async function POST(req: Request) {
       }
     }
 
+    if (longTermPlan) {
+      await prisma.trainingPlan.upsert({
+        where: { id: longTermPlan.id || `active-${session.user.id}` },
+        update: {
+          title: longTermPlan.title,
+          startDate: longTermPlan.startDate,
+          endDate: longTermPlan.endDate,
+          raceDate: longTermPlan.raceDate,
+          goal: longTermPlan.goal,
+          status: longTermPlan.status || 'active',
+          planLevel: longTermPlan.planLevel,
+          currentWeekIndex: longTermPlan.currentWeekIndex || 0,
+        },
+        create: {
+          id: longTermPlan.id || `active-${session.user.id}`,
+          userId: session.user.id,
+          title: longTermPlan.title,
+          startDate: longTermPlan.startDate,
+          endDate: longTermPlan.endDate,
+          raceDate: longTermPlan.raceDate,
+          goal: longTermPlan.goal,
+          status: longTermPlan.status || 'active',
+          planLevel: longTermPlan.planLevel,
+          currentWeekIndex: longTermPlan.currentWeekIndex || 0,
+        }
+      });
+    }
+
+    if (Array.isArray(workoutTemplates)) {
+      for (const template of workoutTemplates) {
+        await prisma.workoutTemplate.upsert({
+          where: { id: template.id },
+          update: {
+            title: template.title,
+            focus: template.focus,
+            duration: template.duration,
+            equipmentRequired: template.equipmentRequired || [],
+            difficulty: template.difficulty,
+            blocks: template.blocks || [],
+            isFavorite: !!template.isFavorite,
+            isBuiltIn: !!template.isBuiltIn,
+          },
+          create: {
+            id: template.id,
+            userId: template.isBuiltIn ? null : session.user.id,
+            title: template.title,
+            focus: template.focus,
+            duration: template.duration,
+            equipmentRequired: template.equipmentRequired || [],
+            difficulty: template.difficulty,
+            blocks: template.blocks || [],
+            isFavorite: !!template.isFavorite,
+            isBuiltIn: !!template.isBuiltIn,
+          }
+        });
+      }
+    }
+
+    if (Array.isArray(racePlans)) {
+      for (const racePlan of racePlans) {
+        await prisma.racePlan.create({
+          data: {
+            userId: session.user.id,
+            title: racePlan.title,
+            targetTimeMs: racePlan.targetTimeMs,
+            division: racePlan.division,
+            gender: racePlan.gender,
+            eventType: racePlan.eventType || 'Individual',
+            stationSplits: racePlan.stationSplits,
+            runSplits: racePlan.runSplits,
+            roxzoneMs: racePlan.roxzoneMs,
+            projectedTimeMs: racePlan.projectedTimeMs,
+          }
+        });
+      }
+    }
+
+    if (readinessSnapshot) {
+      await prisma.readinessSnapshot.create({
+        data: {
+          userId: session.user.id,
+          date: readinessSnapshot.date,
+          level: readinessSnapshot.level,
+          avgRpe: readinessSnapshot.avgRpe ?? null,
+          maxRpe: readinessSnapshot.maxRpe ?? null,
+          completedSessions: readinessSnapshot.completedSessions,
+          painSignals: readinessSnapshot.painSignals || [],
+          redFlagSignals: readinessSnapshot.redFlagSignals || [],
+          volumeMultiplier: readinessSnapshot.volumeMultiplier,
+        }
+      });
+    }
+
+    if (coachGeneration) {
+      await prisma.coachGeneration.create({
+        data: {
+          userId: session.user.id,
+          generationType: coachGeneration.generationType,
+          status: coachGeneration.status,
+          fallbackUsed: !!coachGeneration.fallbackUsed,
+          failureReason: coachGeneration.failureReason || null,
+          metadata: coachGeneration.metadata || {},
+        }
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Sync POST error:', error);
@@ -93,7 +199,16 @@ export async function GET(req: Request) {
     try {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      include: { microcycle: true, dailyLogs: true, stationPRs: true }
+      include: {
+        microcycle: true,
+        dailyLogs: true,
+        stationPRs: true,
+        trainingPlans: { where: { status: 'active' }, orderBy: { createdAt: 'desc' }, take: 1, include: { weeks: true } },
+        workoutTemplates: true,
+        racePlans: { orderBy: { createdAt: 'desc' }, take: 5 },
+        readinessSnapshots: { orderBy: { createdAt: 'desc' }, take: 10 },
+        coachGenerations: { orderBy: { createdAt: 'desc' }, take: 10 }
+      }
     });
 
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -118,7 +233,12 @@ export async function GET(req: Request) {
       profileData: user.profileData ? JSON.parse(user.profileData) : null,
       microcycle: user.microcycle ? normalizeTrainingPlan(JSON.parse(user.microcycle.data)) : null,
       completedLogs: formattedLogs,
-      prs: prsObj
+      prs: prsObj,
+      longTermPlan: user.trainingPlans[0] || null,
+      workoutTemplates: user.workoutTemplates,
+      racePlans: user.racePlans,
+      readinessSnapshots: user.readinessSnapshots,
+      coachGenerations: user.coachGenerations
     });
   } catch (error) {
     console.error('Sync GET error:', error);

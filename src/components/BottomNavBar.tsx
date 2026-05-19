@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, Trophy, FastForward, User } from "lucide-react";
+import { Brain, CalendarDays, Dumbbell, FastForward, LineChart, User } from "lucide-react";
 import { useTranslation } from "@/components/I18nProvider";
 
 export function BottomNavBar() {
@@ -11,8 +11,10 @@ export function BottomNavBar() {
 
   const navItems = [
     { href: "/dashboard", icon: Dumbbell, label: t("nav.dashboard"), strokeWidth: 2.5 },
-    { href: "/benchmarks", icon: Trophy, label: t("nav.benchmarks"), strokeWidth: 2 },
-    { href: "/pacing", icon: FastForward, label: t("nav.pacing"), strokeWidth: 2 },
+    { href: "/train", icon: CalendarDays, label: t("nav.train"), strokeWidth: 2 },
+    { href: "/coach", icon: Brain, label: t("nav.coach"), strokeWidth: 2 },
+    { href: "/race", icon: FastForward, label: t("nav.race"), strokeWidth: 2 },
+    { href: "/metrics", icon: LineChart, label: t("nav.metrics"), strokeWidth: 2 },
     { href: "/profile", icon: User, label: t("nav.profile"), strokeWidth: 2 },
   ];
 

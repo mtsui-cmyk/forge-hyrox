@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import { auth } from "@/auth";
+import prisma from "@/lib/prisma";
 import { assertSevenDayPlan, type TrainingDay } from "@/lib/trainingPlan";
 import { assertCoachReadyMicrocycle, validateCoachReadyMicrocycle } from "@/lib/coachGuardrails";
 import {
@@ -18,6 +19,8 @@ const logToFile = (msg: string) => {
 
 const ALIYUN_API_KEY = process.env.ALIYUN_API_KEY || "";
 const API_URL = process.env.LLM_API_URL || "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages";
+const generationCooldown = new Map<string, number>();
+const GENERATION_COOLDOWN_MS = 30_000;
 
 function attachPlanAdjustments(days: TrainingDay[], adjustments: string[]): TrainingDay[] {
   const cleanAdjustments = adjustments.map((item) => item.trim()).filter(Boolean);
@@ -83,6 +86,11 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const lastGenerationAt = generationCooldown.get(session.user.id) || 0;
+  if (Date.now() - lastGenerationAt < GENERATION_COOLDOWN_MS) {
+    return NextResponse.json({ error: "Please wait before generating another plan." }, { status: 429 });
+  }
+  generationCooldown.set(session.user.id, Date.now());
 
   let isTapering = false;
   let weeksOut = 0;
@@ -253,6 +261,11 @@ Programming Guidelines:
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
+    const requestPayload = {
+      model: "qwen3.5-plus",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
+    };
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {
@@ -261,13 +274,19 @@ Programming Guidelines:
         "content-type": "application/json"
       },
       signal: controller.signal,
-      body: JSON.stringify({
-        model: "qwen3.5-plus",
-        max_tokens: 4096,
-        messages: [
-          { role: "user", content: prompt }
-        ]
-      })
+      body: JSON.stringify(requestPayload)
+    }).catch(async (error) => {
+      logToFile(`Aliyun transient fetch error: ${error.message}. Retrying once.`);
+      return fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "x-api-key": ALIYUN_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json"
+        },
+        signal: controller.signal,
+        body: JSON.stringify(requestPayload)
+      });
     });
     
     clearTimeout(timeoutId);
@@ -302,6 +321,21 @@ Programming Guidelines:
       weeksOut,
       requestedEquipment,
     }));
+    await prisma.coachGeneration.create({
+      data: {
+        userId: session.user.id,
+        generationType: "week",
+        status: "ok",
+        fallbackUsed: false,
+        metadata: {
+          startDate,
+          readinessLevel,
+          readinessVolumeMultiplier,
+          weeksOut,
+          focus: focus || "Balanced",
+        },
+      },
+    }).catch(() => {});
     logToFile("Returning OK JSON map with length " + parsedRes.length);
     return NextResponse.json(parsedRes);
   } catch (error: any) {
@@ -309,6 +343,21 @@ Programming Guidelines:
     console.error("Qwen API Error:", error);
     
     logToFile("Initiating Elite Rescue DAA Fallback...");
+    await prisma.coachGeneration.create({
+      data: {
+        userId: session.user.id,
+        generationType: "week",
+        status: "fallback",
+        fallbackUsed: true,
+        failureReason: typeof error?.message === "string" ? error.message.slice(0, 500) : "Unknown generation error",
+        metadata: {
+          startDate: startDateForFallback,
+          readinessLevel,
+          readinessVolumeMultiplier,
+          weeksOut,
+        },
+      },
+    }).catch(() => {});
     // Fallback Mock generation perfectly matching Tapering/RPE logic dynamically
     const fallbackPlan: TrainingDay[] = [];
     const baseDate = startDateForFallback

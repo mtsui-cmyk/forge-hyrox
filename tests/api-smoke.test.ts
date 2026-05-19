@@ -57,6 +57,7 @@ test("protected API routes return JSON 401 responses when unauthenticated", asyn
     { path: "/api/sync", init: { method: "POST", body: "{}" } },
     { path: "/api/generate-wod", init: { method: "POST", body: "{}" } },
     { path: "/api/generate-swap", init: { method: "POST", body: "{}" } },
+    { path: "/api/coach", init: { method: "POST", body: "{}" } },
   ];
 
   for (const check of checks) {

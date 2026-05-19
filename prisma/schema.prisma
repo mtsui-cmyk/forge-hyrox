@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,6 +15,11 @@ model User {
   microcycle    Microcycle?
   dailyLogs     DailyLog[]
   stationPRs    StationPR[]
+  trainingPlans TrainingPlan[]
+  workoutTemplates WorkoutTemplate[]
+  racePlans     RacePlan[]
+  readinessSnapshots ReadinessSnapshot[]
+  coachGenerations CoachGeneration[]
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 }
@@ -50,4 +55,130 @@ model DailyLog {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+model TrainingPlan {
+  id               String   @id @default(cuid())
+  userId           String
+  title            String
+  startDate        String
+  endDate          String
+  raceDate         String
+  goal             String
+  status           String   @default("active")
+  planLevel        String
+  currentWeekIndex Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weeks            TrainingWeek[]
+  racePlans        RacePlan[]
+  generations      CoachGeneration[]
+
+  @@index([userId, status])
+}
+
+model TrainingWeek {
+  id                String   @id @default(cuid())
+  planId            String
+  weekIndex         Int
+  phase             String
+  focus             String
+  volumeTarget      Int
+  readinessSnapshot Json?
+  planAdjustments   Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  plan              TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  workouts          ScheduledWorkout[]
+
+  @@unique([planId, weekIndex])
+}
+
+model ScheduledWorkout {
+  id              String   @id @default(cuid())
+  userId          String
+  weekId          String?
+  date            String
+  source          String
+  isCompleted     Boolean  @default(false)
+  isSubstituted    Boolean  @default(false)
+  workout          Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  week            TrainingWeek? @relation(fields: [weekId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+}
+
+model WorkoutTemplate {
+  id                String   @id @default(cuid())
+  userId            String?
+  title             String
+  focus             String
+  duration          Int
+  equipmentRequired Json
+  difficulty        String
+  blocks            Json
+  isFavorite        Boolean  @default(false)
+  isBuiltIn         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, focus])
+}
+
+model RacePlan {
+  id              String   @id @default(cuid())
+  userId          String
+  trainingPlanId  String?
+  title           String
+  targetTimeMs    Int
+  division        String
+  gender          String
+  eventType       String   @default("Individual")
+  stationSplits   Json
+  runSplits       Json
+  roxzoneMs       Int
+  projectedTimeMs Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingPlan    TrainingPlan? @relation(fields: [trainingPlanId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model ReadinessSnapshot {
+  id               String   @id @default(cuid())
+  userId           String
+  date             String
+  level            String
+  avgRpe           Float?
+  maxRpe           Float?
+  completedSessions Int
+  painSignals      Json
+  redFlagSignals   Json
+  volumeMultiplier Float
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+model CoachGeneration {
+  id             String   @id @default(cuid())
+  userId         String
+  trainingPlanId String?
+  generationType String
+  status         String
+  fallbackUsed   Boolean  @default(false)
+  failureReason  String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trainingPlan   TrainingPlan? @relation(fields: [trainingPlanId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }

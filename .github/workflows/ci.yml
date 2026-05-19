@@ -9,7 +9,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: file:./ci.db
+      DATABASE_URL: postgresql://forge:forge@localhost:5432/forge?schema=public
       NEXTAUTH_SECRET: ci-secret-for-forge-verification
       NEXTAUTH_URL: http://127.0.0.1:3210
       AUTH_TRUST_HOST: true

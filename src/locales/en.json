@@ -243,6 +243,10 @@
   },
   "nav": {
     "dashboard": "Home",
+    "train": "Train",
+    "coach": "Coach",
+    "race": "Race",
+    "metrics": "Metrics",
     "benchmarks": "Records",
     "pacing": "Pacing",
     "profile": "Profile"

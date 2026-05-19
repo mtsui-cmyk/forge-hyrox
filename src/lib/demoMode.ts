@@ -2,6 +2,9 @@
 
 import { createDemoCompletedLogs, createDemoMicrocycle, DEMO_EQUIPMENT, DEMO_PROFILE, DEMO_PRS, todayDateString } from "./demoData";
 import { useTrainingStore } from "@/store/useTrainingStore";
+import { buildLongTermPlan } from "./longTermPlan";
+import { buildRacePlan } from "./racePlan";
+import { BUILT_IN_WORKOUT_TEMPLATES } from "./workoutLibrary";
 
 const DEMO_FLAG = "forgeDemoMode";
 const DEMO_COOKIE = "forge-demo";
@@ -34,6 +37,19 @@ export function seedDemoWorkspace(lang: "en" | "zh" = "en", startDate = todayDat
   localStorage.setItem(`hyroxTodayEquipment:${startDate}`, JSON.stringify(DEMO_EQUIPMENT));
 
   store.clearPlan();
+  store.setLongTermPlan(buildLongTermPlan({
+    startDate,
+    raceDate: DEMO_PROFILE.nextRaceDate,
+    targetTime: DEMO_PROFILE.targetTime,
+    fitnessLevel: DEMO_PROFILE.fitnessLevel,
+    weeks: 8,
+  }));
+  store.setWorkoutTemplates(BUILT_IN_WORKOUT_TEMPLATES);
+  store.setRacePlans([buildRacePlan({
+    targetTime: DEMO_PROFILE.targetTime,
+    division: DEMO_PROFILE.category as "Open" | "Pro",
+    gender: DEMO_PROFILE.gender,
+  })]);
   store.setMicrocycle(microcycle as any);
   store.setPrs(DEMO_PRS);
   for (const [date, log] of Object.entries(completedLogs)) {
