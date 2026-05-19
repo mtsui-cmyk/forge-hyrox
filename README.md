@@ -81,11 +81,13 @@ FORGE is a fan-made prototype. It is not an official HYROX application and does 
 
 ## Screenshots
 
-| Dashboard | Profile |
+| Home | Train Hub |
 | :---: | :---: |
-| <img src="./public/screenshot-dashboard.png" width="400" alt="FORGE dashboard screenshot" /> | <img src="./public/screenshot-profile.png" width="400" alt="FORGE profile screenshot" /> |
-| **Pacing Engine** | **PR Tracker** |
-| <img src="./public/screenshot-pacing.png" width="400" alt="FORGE pacing engine screenshot" /> | <img src="./public/screenshot-pr.png" width="400" alt="FORGE PR tracker screenshot" /> |
+| <img src="./public/screenshot-dashboard.png" width="400" alt="FORGE home dashboard screenshot" /> | <img src="./public/screenshot-train.png" width="400" alt="FORGE train hub screenshot" /> |
+| **AI Coach** | **Race Prep** |
+| <img src="./public/screenshot-coach.png" width="400" alt="FORGE AI coach screenshot" /> | <img src="./public/screenshot-race.png" width="400" alt="FORGE race prep screenshot" /> |
+| **Metrics** | **Workout Log** |
+| <img src="./public/screenshot-metrics.png" width="400" alt="FORGE metrics dashboard screenshot" /> | <img src="./public/screenshot-workout.png" width="400" alt="FORGE workout log screenshot" /> |
 
 ---
 
